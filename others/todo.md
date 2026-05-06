@@ -1,0 +1,2 @@
+**Concerning the baselines models**
+After the models are fine-tuned in baseline_step1, maybe store the weigths as a .pt to not have to train it again stores them with and without the classifier head because without is needed for index. 
