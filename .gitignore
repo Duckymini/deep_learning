@@ -208,3 +208,6 @@ __marimo__/
 
 # Model weights (too large for version control)
 weights/
+
+# FAISS indexes (too large for version control)
+*.faiss
