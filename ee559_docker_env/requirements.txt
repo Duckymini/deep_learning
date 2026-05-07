@@ -6,3 +6,5 @@ sentence-transformers
 scikit-learn
 evaluate
 seqeval
+faiss-cpu
+# For GPU: use faiss-gpu (ensure the image's CUDA version matches)
