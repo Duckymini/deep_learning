@@ -1,16 +1,20 @@
-FROM continuumio/miniconda3:latest
+FROM registry.rcp.epfl.ch/rcp-courses/2026-ee-559:latest
 
-SHELL ["/bin/bash", "-lc"]
+# Install Python 3.12 from deadsnakes PPA (standard source for Pythons on Ubuntu)
+RUN apt update && apt install -y software-properties-common && \
+    add-apt-repository ppa:deadsnakes/ppa && \
+    apt update && apt install -y python3.12 python3.12-venv python3.12-dev && \
+    rm -r /var/lib/apt/lists/*
 
-# Use a conda-managed base environment so FAISS and notebook tooling work reliably.
-RUN conda install -n base -c conda-forge -y python=3.10 pip faiss-cpu jupyter nbconvert && \
-	conda clean -afy
+# Create a virtualenv using Python 3.12
+RUN python3.12 -m venv /opt/venv
 
-WORKDIR /workspace
+# Activate the venv by default
+ENV PATH="/opt/venv/bin:$PATH"
 
-COPY requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+# Upgrade pip inside the venv
+RUN pip install --upgrade pip
 
-ENV PYTHONUNBUFFERED=1
-
-CMD ["/bin/bash"]
+# Copy and install requirements
+COPY requirements.txt .
+RUN pip install -r requirements.txt
