@@ -1,0 +1,8 @@
+{
+  "bert-base-uncased_IHC": 2.236616447638267,
+  "hateBERT_IHC": 2.0712733229008538,
+  "roberta-base_IHC": 1.8626972933436399,
+  "bert-base-uncased_ISHate": 2.786955372256051,
+  "hateBERT_ISHate": 3.04687341608839,
+  "roberta-base_ISHate": 2.534630865291323
+}
