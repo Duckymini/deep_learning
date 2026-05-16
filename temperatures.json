@@ -4,5 +4,8 @@
   "roberta-base_IHC": 1.8626972933436399,
   "bert-base-uncased_ISHate": 2.786955372256051,
   "hateBERT_ISHate": 3.04687341608839,
-  "roberta-base_ISHate": 2.534630865291323
+  "roberta-base_ISHate": 2.534630865291323,
+  "bert-base-uncased_Vicomtech": 1.6929133894437345,
+  "hateBERT_Vicomtech": 1.5999302187116018,
+  "roberta-base_Vicomtech": 2.119593456086045
 }
