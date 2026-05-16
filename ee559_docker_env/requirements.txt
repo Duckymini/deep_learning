@@ -1,4 +1,12 @@
-transformers>=4.38.0
+torch==2.4.1 --index-url https://download.pytorch.org/whl/cu121
+torchvision==0.19.1 --index-url https://download.pytorch.org/whl/cu121
+matplotlib
+numpy
+pandas
+tqdm
+scikit-learn
+
+transformers==4.46.3
 datasets>=2.18.0
 accelerate>=0.27.0
 wandb
@@ -6,3 +14,5 @@ sentence-transformers
 scikit-learn
 evaluate
 seqeval
+faiss-cpu
+# For GPU: use faiss-gpu (ensure the image's CUDA version matches)
