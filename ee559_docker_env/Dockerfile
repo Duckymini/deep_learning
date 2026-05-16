@@ -18,3 +18,4 @@ RUN pip install --upgrade pip
 # Copy and install requirements
 COPY requirements.txt .
 RUN pip install -r requirements.txt
+RUN pip install jupyter nbconvert
