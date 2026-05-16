@@ -214,3 +214,4 @@ weights/
 
 # FAISS indexes (too large for version control)
 *.faiss
+.DS_Store
