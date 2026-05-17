@@ -10,11 +10,14 @@ K = 4
 # --- Encoding functions ---
 
 def encode(texts, model, tokenizer, batch_size=BATCH_SIZE, max_length=MAX_LENGTH):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+    print("a")
+    device = torch.device("cpu")
+    print("b")
     all_vecs = []
-    for i in tqdm(range(0, len(texts), batch_size), desc="Encoding"):
+    for i in range(0, len(texts), batch_size):
+        print("c")
         batch = texts[i : i + batch_size]
+        print("d")
         inputs = tokenizer(
             batch,
             return_tensors="pt",
@@ -22,11 +25,17 @@ def encode(texts, model, tokenizer, batch_size=BATCH_SIZE, max_length=MAX_LENGTH
             padding=True,
             max_length=max_length,
         )
+        print("e1")
         inputs = {k: v.to(device) for k, v in inputs.items()}
+        print("e2")
         with torch.no_grad():
             outputs = model(**inputs)
-        cls_vecs = outputs.last_hidden_state[:, 0, :].cpu().numpy()
+        print("e3")
+        cls_vecs = outputs.last_hidden_state[:, 0, :].cpu().contiguous().numpy()
+        print("e4")
         all_vecs.append(cls_vecs)
+        print("f")
+    print("g")
     return np.vstack(all_vecs).astype("float32")
 
 def encode_and_search(tweet_text, fetch, model, tokenizer, index):
@@ -37,7 +46,7 @@ def encode_and_search(tweet_text, fetch, model, tokenizer, index):
 
 # ---- Retrieving functions ----
 
-def retrieve_top_k(tweet_text, documents, chunk_id=None, k=K):
+def retrieve_top_k(tweet_text, model, tokenizer, index, documents, chunk_id=None, k=K):
     """
     Always returns exactly k neighbors.
 
@@ -47,7 +56,7 @@ def retrieve_top_k(tweet_text, documents, chunk_id=None, k=K):
     Returns    : list of k (text, score) tuples.
     """
     fetch = k + 1 if chunk_id is not None else k
-    scores, ids = encode_and_search(tweet_text, fetch)
+    scores, ids = encode_and_search(tweet_text, fetch, model, tokenizer, index)
 
     results = []
     for score, cid in zip(scores, ids):
@@ -61,7 +70,7 @@ def retrieve_top_k(tweet_text, documents, chunk_id=None, k=K):
     return results
 
 
-def retrieve_by_threshold(tweet_text, threshold, index, documents, chunk_id=None):
+def retrieve_by_threshold(tweet_text, threshold, model, tokenizer, index, documents, chunk_id=None):
     """
     Returns all neighbors whose similarity score is >= threshold, with no upper limit.
 
@@ -74,8 +83,8 @@ def retrieve_by_threshold(tweet_text, threshold, index, documents, chunk_id=None
                  Pass None at test time.
     Returns    : list of (text, score) tuples with score >= threshold, ordered by score desc.
     """
-    fetch = index.ntotal if chunk_id is not None else index.ntotal
-    scores, ids = encode_and_search(tweet_text, fetch)
+    fetch = index.ntotal
+    scores, ids = encode_and_search(tweet_text, fetch, model, tokenizer, index)
 
     results = []
     for score, cid in zip(scores, ids):
@@ -87,7 +96,7 @@ def retrieve_by_threshold(tweet_text, threshold, index, documents, chunk_id=None
     return results
 
 
-def retrieve_top_k_above_threshold(tweet_text, threshold, documents, chunk_id=None, k=K):
+def retrieve_top_k_above_threshold(tweet_text, threshold, model, tokenizer, index, documents, chunk_id=None, k=K):
     """
     Returns neighbors with score >= threshold, capped at k results.
 
@@ -102,7 +111,7 @@ def retrieve_top_k_above_threshold(tweet_text, threshold, documents, chunk_id=No
     Returns    : list of (text, score) tuples with score >= threshold, len <= k.
     """
     fetch = k + 1 if chunk_id is not None else k
-    scores, ids = encode_and_search(tweet_text, fetch)
+    scores, ids = encode_and_search(tweet_text, fetch, model, tokenizer, index)
 
     results = []
     for score, cid in zip(scores, ids):
