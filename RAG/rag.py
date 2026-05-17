@@ -10,14 +10,10 @@ K = 4
 # --- Encoding functions ---
 
 def encode(texts, model, tokenizer, batch_size=BATCH_SIZE, max_length=MAX_LENGTH):
-    print("a")
-    device = torch.device("cpu")
-    print("b")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     all_vecs = []
-    for i in range(0, len(texts), batch_size):
-        print("c")
+    for i in tqdm(range(0, len(texts), batch_size), desc="Encoding"):
         batch = texts[i : i + batch_size]
-        print("d")
         inputs = tokenizer(
             batch,
             return_tensors="pt",
@@ -25,17 +21,11 @@ def encode(texts, model, tokenizer, batch_size=BATCH_SIZE, max_length=MAX_LENGTH
             padding=True,
             max_length=max_length,
         )
-        print("e1")
         inputs = {k: v.to(device) for k, v in inputs.items()}
-        print("e2")
         with torch.no_grad():
             outputs = model(**inputs)
-        print("e3")
         cls_vecs = outputs.last_hidden_state[:, 0, :].cpu().contiguous().numpy()
-        print("e4")
         all_vecs.append(cls_vecs)
-        print("f")
-    print("g")
     return np.vstack(all_vecs).astype("float32")
 
 def encode_and_search(tweet_text, fetch, model, tokenizer, index):
