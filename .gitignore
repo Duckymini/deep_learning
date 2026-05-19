@@ -216,3 +216,8 @@ weights_rag/
 # FAISS indexes (too large for version control)
 *.faiss
 .DS_Store
+
+# RAG data folder (large dataset files)
+RAG/data/
+
+
