@@ -209,6 +209,7 @@ __marimo__/
 
 # Model weights (too large for version control)
 weights/
+weights_rag/
 *.bin
 *.safetensors
 
