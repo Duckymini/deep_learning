@@ -237,18 +237,20 @@ def explain(layer2_output: Layer2Output, client, model: str) -> ExplainerOutput:
 
 
 # ---------------------------------------------------------------------------
-# Mock Layer 2 — for standalone testing before Layer 2 is finalized
+# KNN Layer 2 — lightweight majority-vote alternative to the full RAG classifier
 # ---------------------------------------------------------------------------
 
-def mock_layer2(
+def knn_layer2(
     original_text: str,
     retrieved: List[Tuple[str, float]],
     hate_category: str = "unknown",
 ) -> Layer2Output:
     """
-    Derives a Layer2Output from retrieved passages via majority vote on label prefixes.
-    Confidence = fraction of retrieved passages that agree with the majority label.
-    Use this to test Layer 3 independently while Layer 2 is being built.
+    Classifies via majority vote on the [hate]/[not hate] prefixes of retrieved neighbors.
+    Confidence = fraction of neighbors that agree with the majority label.
+
+    Simpler and faster than the full RAG classifier — useful for quick tests,
+    ablation studies, or as a KNN baseline to compare against the trained model.
     """
     labels = [_extract_label(text) for text, _ in retrieved]
     hate_count = labels.count("hate")
@@ -301,7 +303,7 @@ if __name__ == "__main__":
         ("[hate] crime statistics are frequently misused to spread racist narratives targeting immigrant communities", 0.981),
         ("[not hate] immigration policy is a legitimate subject of democratic debate", 0.963),
     ]
-    l2 = mock_layer2(text1, retrieved1, hate_category="racism")
+    l2 = knn_layer2(text1, retrieved1, hate_category="racism")
     print(f"\n--- Example 1 ---")
     print(f"Text: {text1}")
     print(f"Layer 2: {l2.label} ({l2.confidence:.0%} confidence)")
@@ -315,7 +317,7 @@ if __name__ == "__main__":
         ("[not hate] expressions of solidarity with marginalized groups are protected discourse", 0.971),
         ("[hate] immigrants are used as scapegoats in racist political rhetoric", 0.955),
     ]
-    l2b = mock_layer2(text2, retrieved2)
+    l2b = knn_layer2(text2, retrieved2)
     print(f"\n--- Example 2 (counter-speech) ---")
     print(f"Text: {text2}")
     print(f"Layer 2: {l2b.label} ({l2b.confidence:.0%} confidence)")

@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hate Speech Detection — LLM Report</title>
+  <style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+       max-width: 960px; margin: 0 auto; padding: 2.5rem 2rem;
+       background: #fafafa; color: #222; font-size: 14px; line-height: 1.5; }
+h1 { font-size: 1.3rem; font-weight: 600; color: #111; margin-bottom: .2rem; }
+.run-meta { color: #888; font-size: .82rem; margin-bottom: 2rem; }
+
+.summary-box { display: flex; gap: 0; border: 1px solid #e5e7eb; border-radius: 8px;
+               overflow: hidden; margin-bottom: 2rem; background: white; }
+.stat { flex: 1; text-align: center; padding: .9rem .5rem;
+        border-right: 1px solid #e5e7eb; }
+.stat:last-child { border-right: none; }
+.stat .val { font-size: 1.4rem; font-weight: 600; color: #111; }
+.stat .lbl { font-size: .72rem; color: #999; text-transform: uppercase;
+             letter-spacing: .06em; margin-top: .1rem; }
+
+.card { background: white; border: 1px solid #e5e7eb; border-radius: 8px;
+        padding: 1rem 1.25rem; margin-bottom: .75rem;
+        border-left: 3px solid #d1d5db; }
+.card.correct { border-left-color: #6b7280; }
+.card.wrong   { border-left-color: #9ca3af; border-left-style: dashed; }
+
+.card-header  { margin-bottom: .5rem; }
+.card-id      { font-size: .75rem; color: #aaa; font-family: monospace; margin-right: .4rem; }
+.card-text    { font-size: .95rem; font-weight: 500; color: #111; }
+
+.badges { display: flex; gap: .35rem; flex-wrap: wrap; margin-bottom: .65rem; align-items: center; }
+span.badge { display: inline-block; padding: .1rem .45rem; border-radius: 3px;
+             font-size: .73rem; font-weight: 500; white-space: nowrap;
+             border: 1px solid transparent; }
+
+.b-hate     { background: #f5f5f5; color: #555; border-color: #d1d5db; }
+.b-nothate  { background: #f5f5f5; color: #555; border-color: #d1d5db; }
+.b-high     { background: #f5f5f5; color: #374151; border-color: #9ca3af; font-weight: 600; }
+.b-medium   { background: #f5f5f5; color: #374151; border-color: #d1d5db; }
+.b-low      { background: #f5f5f5; color: #6b7280; border-color: #e5e7eb; }
+.b-autoblock{ background: #f0f0f0; color: #111; border-color: #9ca3af; font-weight: 600; }
+.b-review   { background: #f5f5f5; color: #374151; border-color: #d1d5db; }
+.b-allow    { background: #f5f5f5; color: #6b7280; border-color: #e5e7eb; }
+.b-correct  { background: #f5f5f5; color: #374151; border-color: #9ca3af; }
+.b-wrong    { background: #f0f0f0; color: #374151; border-color: #9ca3af; font-style: italic; }
+.b-conf     { background: #f5f5f5; color: #374151; border-color: #d1d5db; font-family: monospace; }
+
+.section-lbl { font-size: .7rem; text-transform: uppercase; letter-spacing: .07em;
+               color: #bbb; margin: .75rem 0 .3rem; font-weight: 500; }
+.passages    { background: #fafafa; border: 1px solid #f0f0f0; border-radius: 5px;
+               padding: .6rem .9rem; }
+.passage     { font-size: .84rem; margin: .25rem 0; display: flex; gap: .5rem; align-items: baseline; color: #444; }
+.p-rank      { font-family: monospace; color: #bbb; min-width: 2rem; }
+.p-sim       { font-family: monospace; color: #aaa; min-width: 4rem; }
+.p-lhate     { color: #555; font-weight: 600; white-space: nowrap; }
+.p-lnothate  { color: #888; white-space: nowrap; }
+.p-text      { color: #555; }
+.p-cited     { color: #222; font-weight: 600; }
+
+.llm-box  { background: #f7f8fa; border-left: 2px solid #9ca3af; padding: .6rem .9rem;
+            border-radius: 0 5px 5px 0; font-size: .88rem; color: #333; margin: .3rem 0; }
+.note-box { background: #f9f8f5; border-left: 2px solid #d1c4a0; padding: .5rem .9rem;
+            border-radius: 0 5px 5px 0; font-size: .84rem; color: #666; margin: .3rem 0; }
+.targets  { font-size: .83rem; color: #888; margin-top: .3rem; }
+</style>
+</head>
+<body>
+  <h1>Hate Speech Detection — LLM Explanation Report</h1>
+  <p class="run-meta">HATEBERT · sbert/full · trained_on=Vicomtech · LLM=llama-3.3-70b-versatile · 2026-05-30 10:50</p>
+  
+<div class="summary-box">
+  <div class="stat"><div class="val">58.0%</div><div class="lbl">Accuracy</div></div>
+  <div class="stat"><div class="val">0.580</div><div class="lbl">F1 macro</div></div>
+  <div class="stat"><div class="val">29/50</div><div class="lbl">Correct</div></div>
+  <div class="stat"><div class="val">16</div><div class="lbl">Auto-block</div></div>
+  <div class="stat"><div class="val">17</div><div class="lbl">Human-review</div></div>
+  <div class="stat"><div class="val">17</div><div class="lbl">Allow</div></div>
+</div>
+  
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#1</span>
+    <span class="card-text">Bitches are dumb yes but he was busted on grindr or some other gay app you queer.</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-hate">hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">75.7%</span>
+    <span class="badge b-high">severity: high</span>
+    <span class="badge b-autoblock">auto-block</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.4674</span><span class="p-lnothate">[not hate]</span><span class="p-cited">Bitch boi still doesn’t know his girl still barking up my tree 😴 ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.4562</span><span class="p-lnothate">[not hate]</span><span class="p-cited">If a nigga who knows you were with his bitch right before him and gives you the side eye  He a hoe ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.4385</span><span class="p-lhate">[hate]</span><span class="p-cited">Women are stupid. They get cheated on and approach and fight the side chic. Bitch who cheated on you? Who? Stupidity is  ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged due to the use of derogatory language towards women and the LGBTQ+ community, indicating hate speech. The language used is similar to passages that also contain derogatory terms.</div>
+  <div class="targets">Target groups: women, LGBTQ+</div>
+  <div class="note-box">Note: Review for potential long-term ban due to severity of hate speech</div>
+</div>
+
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#2</span>
+    <span class="card-text">Satanic trannies are skipping rehearsal?</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-hate">hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">61.9%</span>
+    <span class="badge b-high">severity: high</span>
+    <span class="badge b-autoblock">auto-block</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.5146</span><span class="p-lhate">[hate]</span><span class="p-cited">Gays Against Groomers: ##ing care and drag performances. even then, gag ’ s leadership appears to have internalized the  ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.5094</span><span class="p-lhate">[hate]</span><span class="p-cited">MassResistance: flags. they ’ re pushing satanism. they ’ re pushing all this grooming. they ’ re not teaching. ” — arth ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.5077</span><span class="p-lhate">[hate]</span><span class="p-cited">MassResistance: all these sex mimics say they were just terrified to be seen by their friends or coworkers or family in  ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged as hate speech due to the use of derogatory language targeting a specific group. The language used is similar to that found in passages promoting transphobia and satanism.</div>
+  <div class="targets">Target groups: Transgender individuals, LGBTQ+ community</div>
+  <div class="note-box">Note: The content contains explicit hate speech and does not require further review.</div>
+</div>
+
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#3</span>
+    <span class="card-text">go back to Africa nigger</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-hate">hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">96.0%</span>
+    <span class="badge b-high">severity: high</span>
+    <span class="badge b-autoblock">auto-block</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.5890</span><span class="p-lhate">[hate]</span><span class="p-cited">we are talking about america africa do not upkeep about you white lady ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.5776</span><span class="p-lhate">[hate]</span><span class="p-cited">we are talking about america africa do not care about you white equal lady ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.5696</span><span class="p-lhate">[hate]</span><span class="p-cited">i white thereare no heard people in africa you should go there ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged as hate speech due to the use of a racial slur and a derogatory statement telling someone to 'go back to Africa'.</div>
+  <div class="targets">Target groups: African people, Black people</div>
+  <div class="note-box">Note: The language used is highly offensive and discriminatory.</div>
+</div>
+
+<div class="card wrong">
+  <div class="card-header">
+    <span class="card-id">#4</span>
+    <span class="card-text">The Jewish people are very good people. So are the White people. Everyone should just simmer down and take a chill pill</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-wrong">wrong</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">93.7%</span>
+    <span class="badge b-high">severity: high</span>
+    <span class="badge b-autoblock">auto-block</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.7189</span><span class="p-lhate">[hate]</span><span class="p-cited">rt how exactly are most jews  &quot; good people &quot; &quot; ? almost all jews are anti-white and are not honest about jewish suprema ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.6604</span><span class="p-lhate">[hate]</span><span class="p-cited">most jews follow / embrace their leaders anti white hate  thus most jews are not really ' good people ' like ramz says . ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.6400</span><span class="p-lhate">[hate]</span><span class="p-cited">show me just one jew who supports the idea of independent white nations and * maybe * we can talk about  &quot; good jews &quot; &quot; ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged as hate speech due to its potential to be interpreted as divisive or inflammatory, despite its superficially positive tone, as evidenced by passages that express anti-Semitic and white supremacist sentiments.</div>
+  <div class="targets">Target groups: Jewish people, White people</div>
+  <div class="note-box">Note: Review for context to confirm whether the intent is genuinely conciliatory or if it veils hate speech.</div>
+</div>
+
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#5</span>
+    <span class="card-text">Oh BTW this was the first year where phones became more popular than PCs</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-nothate">not hate</span>
+    <span class="badge b-conf">78.2%</span>
+    <span class="badge b-low">severity: low</span>
+    <span class="badge b-allow">allow</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.3635</span><span class="p-lhate">[hate]</span><span class="p-cited">if you want information technology to know what it was like back in the good ol ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.3584</span><span class="p-lhate">[hate]</span><span class="p-cited">aye  well  i like the nineties . people were happy and confident and the diversity hadn't started to bite . ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.3309</span><span class="p-lhate">[hate]</span><span class="p-cited">it s information technology just the way they are ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was allowed because it does not contain hate speech, merely stating a fact about the popularity of phones compared to PCs. The retrieved evidence passages do not indicate any hateful or discriminatory language.</div>
+  <div class="targets">Target groups: —</div>
+  
+</div>
+
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#6</span>
+    <span class="card-text">IPAs are disgusting and like 7 dollars a pop. I hate going to bars now.</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-nothate">not hate</span>
+    <span class="badge b-conf">92.8%</span>
+    <span class="badge b-low">severity: low</span>
+    <span class="badge b-allow">allow</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.4678</span><span class="p-lnothate">[not hate]</span><span class="p-cited">YUENGLINGS ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.4260</span><span class="p-lnothate">[not hate]</span><span class="p-cited">Normally not a fan of beer but it was cheap and pretty good . ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.4230</span><span class="p-lnothate">[not hate]</span><span class="p-cited">Not going to be able to stop for drinks except for the occasional gas station bottled water . ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was allowed because it expresses a personal opinion about a type of beer and the cost, without targeting any specific group. The language used is negative but does not contain hate speech.</div>
+  <div class="targets">Target groups: beer enthusiasts, bar patrons</div>
+  
+</div>
+
+<div class="card wrong">
+  <div class="card-header">
+    <span class="card-id">#7</span>
+    <span class="card-text">Of course they don't Captain Obvious: I wanna know why they don't.</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-wrong">wrong</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">91.6%</span>
+    <span class="badge b-medium">severity: medium</span>
+    <span class="badge b-review">human-review</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.3546</span><span class="p-lnothate">[not hate]</span><span class="p-text">Oh, you 'd better believe they do .</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.3507</span><span class="p-lhate">[hate]</span><span class="p-cited">Why do sumo wrestlers shave their legs? So that people don't confuse them for feminists. ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.3331</span><span class="p-lhate">[hate]</span><span class="p-cited">they do and you can check them the white on white crime is less than half the total % of black on black ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged due to its similarity to passages containing discriminatory language and potential hate speech, despite the text itself not explicitly containing hate speech. The context and tone suggest a potentially derogatory intent.</div>
+  <div class="targets">Target groups: feminists, black people</div>
+  <div class="note-box">Note: Review the context in which this comment was made to determine if it's part of a larger pattern of hate speech or discriminatory behavior.</div>
+</div>
+
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#8</span>
+    <span class="card-text">Yeah, fried dopamine receptors means it makes you physically incapable of feeling good.</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-nothate">not hate</span>
+    <span class="badge b-conf">84.7%</span>
+    <span class="badge b-low">severity: low</span>
+    <span class="badge b-allow">allow</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.3892</span><span class="p-lnothate">[not hate]</span><span class="p-cited">Been A week since I put any poison in my body and I feel gread ( better every day ) dont have any craving anymore Now I  ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.3838</span><span class="p-lnothate">[not hate]</span><span class="p-cited">`` Green Eggs and Ham '' a metaphor for succumbing to peer pressure to try marijuana . ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.3650</span><span class="p-lnothate">[not hate]</span><span class="p-cited">Ever been so hungover that your stomach feels like it's eating itself ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was allowed because it does not contain hate speech, but rather a statement about the effects of substance use. The language used is neutral and informative, without targeting any specific group.</div>
+  <div class="targets">Target groups: —</div>
+  
+</div>
+
+<div class="card wrong">
+  <div class="card-header">
+    <span class="card-id">#9</span>
+    <span class="card-text">The military have more strict OFOF than cops.</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-wrong">wrong</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">71.0%</span>
+    <span class="badge b-medium">severity: medium</span>
+    <span class="badge b-review">human-review</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.5549</span><span class="p-lhate">[hate]</span><span class="p-cited">Veterans on Patrol: don ’ t have to comply with state or federal laws. in their own words “ these criminals we are stand ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.5047</span><span class="p-lhate">[hate]</span><span class="p-cited">Veterans on Patrol: worse than the cartel … they wear sheriff deputy uniforms, police uniforms, military uniforms, and n ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.5043</span><span class="p-lhate">[hate]</span><span class="p-text">Veterans on Patrol: notion that they do not have to adhere to federal or state laws while encouraging others online to d</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged as hate speech due to its comparison of military and law enforcement, which may be perceived as derogatory or inflammatory, similar to the tone found in passages from Veterans on Patrol. The language used may be seen as promoting a negative and confrontational attitude towards law enforcement.</div>
+  <div class="targets">Target groups: law enforcement, military</div>
+  <div class="note-box">Note: Review the context in which the comparison is made to determine if it is intended to be derogatory or if it is a legitimate commentary on policies or procedures.</div>
+</div>
+
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#10</span>
+    <span class="card-text">I like it, my day to day watch is this</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-nothate">not hate</span>
+    <span class="badge b-conf">94.7%</span>
+    <span class="badge b-low">severity: low</span>
+    <span class="badge b-allow">allow</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.3950</span><span class="p-lnothate">[not hate]</span><span class="p-cited">This advent calendar helps you pimp your Prosecco throughout Christmas: https://t.co/0UJJyUweFr https://t.co/vjRHB8WRv1 ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.3936</span><span class="p-lhate">[hate]</span><span class="p-text">I don't know why women wear watches, there's a perfectly good clock on the stove. #WomenSuck</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.3741</span><span class="p-lnothate">[not hate]</span><span class="p-cited">Felling love with this Couture Inspired Sandwich Maker by Dash: https://t.co/sfozqEj4ta #sandwichmaker #appliance… https ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was allowed because it does not contain hate speech, instead expressing a positive sentiment towards a personal item. The language used is neutral and does not target any specific group.</div>
+  <div class="targets">Target groups: —</div>
+  
+</div>
+
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#11</span>
+    <span class="card-text">Do you not know what a delegate is? its an unpaid representative the party chooses based on networking This is like when Octavian was sent to the Ilyricum campaign</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-nothate">not hate</span>
+    <span class="badge b-conf">90.2%</span>
+    <span class="badge b-low">severity: low</span>
+    <span class="badge b-allow">allow</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.4668</span><span class="p-lhate">[hate]</span><span class="p-cited">James Orien Allsup: allsup will conduct voter outreach and elect local party leadership. notifications ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.4201</span><span class="p-lhate">[hate]</span><span class="p-cited">James Mason: he called the party ’ s alexandria, virginia, headquarters first, and staff member william pierce recommend ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.4189</span><span class="p-lhate">[hate]</span><span class="p-cited">Augustus Sol Invictus: delivered a speech to their organization during his campaign, where he referred to members as his ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was allowed because it does not contain hate speech, instead discussing political concepts and historical references. The language used is informative and lacks any derogatory or discriminatory tone.</div>
+  <div class="targets">Target groups: —</div>
+  
+</div>
+
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#12</span>
+    <span class="card-text">Nigger problems require nigger solutions. Let the niggers deal with each other as they deem necessary.</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-hate">hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">93.7%</span>
+    <span class="badge b-high">severity: high</span>
+    <span class="badge b-autoblock">auto-block</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.6394</span><span class="p-lhate">[hate]</span><span class="p-cited">Violence in our streets is niggers' fault. ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.6393</span><span class="p-lhate">[hate]</span><span class="p-cited">Violence on our streets is niggers' fault. ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.6137</span><span class="p-lhate">[hate]</span><span class="p-cited">If we could just have a white country like everyone else, this problem of niggas would go away. ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged due to its use of a racial slur and promotion of segregation, indicating a high level of hate speech. The language used is derogatory and dehumanizing towards a specific group.</div>
+  <div class="targets">Target groups: African Americans</div>
+  <div class="note-box">Note: The content contains explicit hate speech and racial slurs, making it a clear violation of community guidelines.</div>
+</div>
+
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#13</span>
+    <span class="card-text">integral watches are so hideous</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-nothate">not hate</span>
+    <span class="badge b-conf">75.8%</span>
+    <span class="badge b-low">severity: low</span>
+    <span class="badge b-allow">allow</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.5238</span><span class="p-lhate">[hate]</span><span class="p-cited">I don't know why women wear watches, there's a perfectly good clock on the stove. #WomenSuck ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.4051</span><span class="p-lnothate">[not hate]</span><span class="p-text">Factory nickel , with carved pearl grip scales .</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.4028</span><span class="p-lnothate">[not hate]</span><span class="p-text">ancient white jewellery !</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The text 'integral watches are so hideous' was classified as not hate speech with a confidence of 0.76, likely due to its focus on a product rather than a group of people. The retrieved evidence passages did not contain strong indicators of hate speech.</div>
+  <div class="targets">Target groups: —</div>
+  
+</div>
+
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#14</span>
+    <span class="card-text">You will be drafted to defend zog</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-hate">hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">86.6%</span>
+    <span class="badge b-high">severity: high</span>
+    <span class="badge b-autoblock">auto-block</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.4454</span><span class="p-lhate">[hate]</span><span class="p-cited">Zionist: Hatebase entry for Zionist. Target category: Judaism. Filter group: religion. Language: English. Offensiveness: ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.4274</span><span class="p-lhate">[hate]</span><span class="p-cited">this is antifa . zog will take anyone to fight for greater israel ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.4191</span><span class="p-lhate">[hate]</span><span class="p-cited">Maximum resistance towards Zog ! ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged as hate speech due to the mention of 'zog', which is associated with extremely offensive language targeting the Jewish community. The context suggests a call to action that may be perceived as threatening or discriminatory.</div>
+  <div class="targets">Target groups: Judaism</div>
+  <div class="note-box">Note: Review for potential anti-Semitic hate speech</div>
+</div>
+
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#15</span>
+    <span class="card-text">Do you have a white family and you do picnics?</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-nothate">not hate</span>
+    <span class="badge b-conf">92.0%</span>
+    <span class="badge b-low">severity: low</span>
+    <span class="badge b-allow">allow</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.5173</span><span class="p-lhate">[hate]</span><span class="p-cited">maga white cookouts would be nice . ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.4680</span><span class="p-lnothate">[not hate]</span><span class="p-cited">did you adopt any white kids ? ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.4514</span><span class="p-lnothate">[not hate]</span><span class="p-cited">do they have white skin ? ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was allowed because it appears to be a neutral inquiry about family activities and does not contain overtly hateful language, despite some similarity to passages that could be considered discriminatory.</div>
+  <div class="targets">Target groups: racial groups</div>
+  <div class="note-box">Note: The question about having a white family and doing picnics may be perceived as insensitive but lacks clear intent to harm or discriminate, thus it's classified as not hate speech with high confidence.</div>
+</div>
+
+<div class="card wrong">
+  <div class="card-header">
+    <span class="card-id">#16</span>
+    <span class="card-text">Lots of blacks use fentanyl as well. Meth is mostly a white thing though.</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-wrong">wrong</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">64.9%</span>
+    <span class="badge b-medium">severity: medium</span>
+    <span class="badge b-review">human-review</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.5447</span><span class="p-lhate">[hate]</span><span class="p-cited">What's the difference between heroine and a black person? I think twice about shooting heroin. ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.5382</span><span class="p-lhate">[hate]</span><span class="p-cited">Why is all medicine white? Blacks don't work ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.5255</span><span class="p-lhate">[hate]</span><span class="p-cited">i guess white lives dont matter if they kill themselves with opioids and heroine ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged for hate speech due to its implication of racial stereotypes regarding drug use. The text makes a distinction between the races, suggesting a negative association with certain groups.</div>
+  <div class="targets">Target groups: black people, white people</div>
+  <div class="note-box">Note: Review for potential racial bias and stereotyping in the context of drug use.</div>
+</div>
+
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#17</span>
+    <span class="card-text">Lmao</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-nothate">not hate</span>
+    <span class="badge b-conf">85.4%</span>
+    <span class="badge b-low">severity: low</span>
+    <span class="badge b-allow">allow</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.2477</span><span class="p-lnothate">[not hate]</span><span class="p-cited">Plan to whore out my sexy bitch tomorrow night and look for hot tops.  Here is the funniest response I get😂 https://t.co ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.2391</span><span class="p-lhate">[hate]</span><span class="p-cited">@rosemcgowan Everyone knows women are too dramatic and hysterical. https://t.co/57Ecd8LyVh ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.2346</span><span class="p-lhate">[hate]</span><span class="p-cited">Anti-feminist sign..... ('WOMEN' you want to deny men their balls/gender , here is a sign made by Men in response!) http ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The text 'Lmao' was classified as not hate speech with a confidence of 0.85, likely due to its neutral and informal nature, which does not directly target or demean any specific group as seen in the provided evidence passages.</div>
+  <div class="targets">Target groups: women, feminists</div>
+  
+</div>
+
+<div class="card wrong">
+  <div class="card-header">
+    <span class="card-id">#18</span>
+    <span class="card-text">Incitement to violence is a crime.</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-wrong">wrong</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">69.2%</span>
+    <span class="badge b-medium">severity: medium</span>
+    <span class="badge b-review">human-review</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.5765</span><span class="p-lnothate">[not hate]</span><span class="p-cited">yelling i hate white people and punching one isnt a hate crime  canadian judge rules via ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.5564</span><span class="p-lnothate">[not hate]</span><span class="p-cited">Is that a hate crime what I just said ? ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.5532</span><span class="p-lnothate">[not hate]</span><span class="p-cited">yelling i hate white people and punching one isnt a hate crime  canadian judge rules #swrm #canada #sackthejudge via ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged as hate speech due to its similarity to passages that contain hateful language, despite the text itself not explicitly containing hate speech. The model's confidence in this classification is moderate.</div>
+  <div class="targets">Target groups: white people</div>
+  <div class="note-box">Note: Review the context in which 'incitement to violence is a crime' is mentioned to determine if it's being used to promote or condemn hate speech.</div>
+</div>
+
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#19</span>
+    <span class="card-text">thanks fren. i can work with that</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-nothate">not hate</span>
+    <span class="badge b-conf">96.8%</span>
+    <span class="badge b-low">severity: low</span>
+    <span class="badge b-allow">allow</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.2707</span><span class="p-lnothate">[not hate]</span><span class="p-cited">ji the game has just began hope it doesn't turn out to be 20-20 matchonly can wish u best of luck ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.2547</span><span class="p-lnothate">[not hate]</span><span class="p-cited">If i sent you some pic wound use be able to put them up cuz use dont have many also i have lots of links to give use ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.2526</span><span class="p-lnothate">[not hate]</span><span class="p-cited">I hope then there are no hard feelings ??? ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content 'thanks fren. i can work with that' was allowed because it lacks any language that could be considered hate speech, with the provided evidence passages also not indicating any hateful intent.</div>
+  <div class="targets">Target groups: —</div>
+  
+</div>
+
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#20</span>
+    <span class="card-text">Make sure they know it was Cohen slave boats</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-hate">hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">83.7%</span>
+    <span class="badge b-high">severity: high</span>
+    <span class="badge b-autoblock">auto-block</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.4782</span><span class="p-lhate">[hate]</span><span class="p-cited">look in the face of this criminal captain catch he group a rescued refugees against law and is now by court atomic numbe ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.4760</span><span class="p-lhate">[hate]</span><span class="p-cited">look in will face of this and captain he rescued refugees against law criminal and now by court in malta hopefully he wi ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.4737</span><span class="p-lhate">[hate]</span><span class="p-text">Harry Cooper: the german u - boat veterans \ ] and they gave him their stories and signed photographs for free and he so</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged as hate speech due to the mention of 'slave boats', which may be perceived as derogatory and targeting a specific group. The language used is inflammatory and has a high confidence score of 0.84.</div>
+  <div class="targets">Target groups: Refugees, Immigrants</div>
+  <div class="note-box">Note: Review the context in which 'Cohen slave boats' is mentioned to confirm the hate speech classification.</div>
+</div>
+
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#21</span>
+    <span class="card-text">noone cares about us blue collar workers Politics is just a theater performance to keep jews in power.</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-hate">hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">85.3%</span>
+    <span class="badge b-high">severity: high</span>
+    <span class="badge b-autoblock">auto-block</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.5644</span><span class="p-lnothate">[not hate]</span><span class="p-text">white house doesn't care about american workers via</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.5261</span><span class="p-lhate">[hate]</span><span class="p-cited">I have heard that Jews can't be bothered work, I believe that it depends on their inferior race. ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.5108</span><span class="p-lhate">[hate]</span><span class="p-cited">jewish people are featured in the top roles of most companies little because of their race . ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged due to its hateful tone towards Jewish people, implying they hold power and are responsible for the plight of blue collar workers. This language is similar to passages that express racist stereotypes.</div>
+  <div class="targets">Target groups: Jewish people, blue collar workers</div>
+  <div class="note-box">Note: The text explicitly mentions Jews in a derogatory context, which aligns with known hate speech patterns.</div>
+</div>
+
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#22</span>
+    <span class="card-text">Poor girl, now her husband-brother has no choice but to honor kill her</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-hate">hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">64.0%</span>
+    <span class="badge b-high">severity: high</span>
+    <span class="badge b-autoblock">auto-block</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.5304</span><span class="p-lhate">[hate]</span><span class="p-cited">Isis bride supported Isis and now that Isis is defeated, she wants to pass on our side. She does not have any rights! Le ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.4906</span><span class="p-lhate">[hate]</span><span class="p-cited">UK: Father of two jihadis killed in Syria threatens to have his wife shot if she gave evidence against him https://www.j ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.4886</span><span class="p-lhate">[hate]</span><span class="p-text">April Gaede: was accorded the “ honor ” of disposing of the remains of terrorist david lane, a member of the order who d</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged as hate speech due to its reference to 'honor kill', which implies violence against a person, and its similarity to passages that promote or describe violent acts against individuals or groups. The language used is derogatory and threatening, indicating a hostile tone.</div>
+  <div class="targets">Target groups: women, individuals perceived as disloyal to a group</div>
+  <div class="note-box">Note: Review for potential incitement of violence against individuals or groups.</div>
+</div>
+
+<div class="card wrong">
+  <div class="card-header">
+    <span class="card-id">#23</span>
+    <span class="card-text">According to Wikipedia, there's 770 Jews in Norway vs 182600 Muslims.</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-wrong">wrong</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">76.8%</span>
+    <span class="badge b-medium">severity: medium</span>
+    <span class="badge b-review">human-review</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.5857</span><span class="p-lhate">[hate]</span><span class="p-cited">10 % of norwegian women have been raped by muslim invaders  half before they were 18 | more : ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.5664</span><span class="p-lhate">[hate]</span><span class="p-text">equal of the population of belgium are muslims</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.5603</span><span class="p-lhate">[hate]</span><span class="p-cited">Center for Immigration Studies: million jewish victims of nazism that muslims believe confers vast moral and political a ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged as hate speech due to its potential to perpetuate harmful comparisons between Jewish and Muslim populations, which could be used to incite hatred or intolerance. The provided evidence passages suggest a pattern of inflammatory and discriminatory language.</div>
+  <div class="targets">Target groups: Jews, Muslims</div>
+  <div class="note-box">Note: Review the context in which the statistics are being presented to determine if they are being used to promote hatred or discrimination.</div>
+</div>
+
+<div class="card wrong">
+  <div class="card-header">
+    <span class="card-id">#24</span>
+    <span class="card-text">As long as their definition of porn excludes 2d I might be on board.</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-wrong">wrong</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">54.0%</span>
+    <span class="badge b-low">severity: low</span>
+    <span class="badge b-review">human-review</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 2 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.4301</span><span class="p-lhate">[hate]</span><span class="p-cited">Tim Wildmon: being asked to rule on an anti - pornography statute. ” more recently, wildmon ’ s public statements have b ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.4229</span><span class="p-lhate">[hate]</span><span class="p-cited">Pornography and prostitution should be outlawed as the jewish filth that it is . _ _ _ _ _ _ _ _ _ nazi.org.uk ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged due to its potential relation to discussions around pornography, which may be associated with hate speech as seen in evidence passage [2], although the tone of the original text does not directly express hate.</div>
+  <div class="targets">Target groups: Jewish people, Individuals involved in the pornography industry</div>
+  <div class="note-box">Note: The text does not explicitly contain hate speech but its context and potential implications require further review.</div>
+</div>
+
+<div class="card wrong">
+  <div class="card-header">
+    <span class="card-id">#25</span>
+    <span class="card-text">the irony and kind of funny thing is, they won't even leave. make of that what you want. glhf</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-wrong">wrong</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">89.5%</span>
+    <span class="badge b-medium">severity: medium</span>
+    <span class="badge b-review">human-review</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.4854</span><span class="p-lhate">[hate]</span><span class="p-cited">Center for Immigration Studies: so that they themselves choose to leave, alleviating the work of immigration enforcement ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.4661</span><span class="p-lhate">[hate]</span><span class="p-cited">some racist libtards say that if trump wins they will go to canada that is pretty funny why go to a livid country and no ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.4659</span><span class="p-lhate">[hate]</span><span class="p-cited">@CNN If they weren't hear illegally than it wouldn't be a problem. Perhaps they should just leave. Nobody is stopping th ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged as hate speech due to its implication that certain individuals should leave, which is similar to language used in passages discussing immigration and nationality in a derogatory manner. The tone and language used suggest a discriminatory intent.</div>
+  <div class="targets">Target groups: immigrants, minority groups</div>
+  <div class="note-box">Note: Review for context and potential discriminatory intent</div>
+</div>
+
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#26</span>
+    <span class="card-text">The genocide was arguably the best thing to happen to Rwanda. Paul Kagame did nothing wrong.</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-hate">hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">90.3%</span>
+    <span class="badge b-high">severity: high</span>
+    <span class="badge b-autoblock">auto-block</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.5570</span><span class="p-lhate">[hate]</span><span class="p-cited">the only good thing that has ever happened to this world was the genocide and the only good thing to ever come out of it ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.4970</span><span class="p-lhate">[hate]</span><span class="p-text">the genocide never existed except in the minds of the people who believed it .</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.4938</span><span class="p-lhate">[hate]</span><span class="p-cited">the only good thing that has ever happened to this world was the massacre and the only good thing to ever come out of it ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged as hate speech due to its positive portrayal of the genocide in Rwanda, which is a highly sensitive and tragic event. This statement may be offensive to the survivors and victims' families of the genocide.</div>
+  <div class="targets">Target groups: Rwandan genocide survivors, Rwandan people</div>
+  <div class="note-box">Note: Review for potential removal due to glorification of genocide</div>
+</div>
+
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#27</span>
+    <span class="card-text">Police officer getting shot to death is extremely rare in France</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-nothate">not hate</span>
+    <span class="badge b-conf">88.6%</span>
+    <span class="badge b-low">severity: low</span>
+    <span class="badge b-allow">allow</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.5010</span><span class="p-lnothate">[not hate]</span><span class="p-cited">female officer shot dead in paris by african wielding assault rifle and bullet-proof vest ' ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.4540</span><span class="p-lhate">[hate]</span><span class="p-cited">Pamela Geller: security guard was shot in the leg before an officer returned fire, remarkably hitting both attackers who ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.4506</span><span class="p-lhate">[hate]</span><span class="p-cited">white men are shot by cops three times more often than black men are . the media however does not likely sensationalize  ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The text was classified as not hate speech because it simply states a factual claim about the rarity of police officers being shot to death in France, without expressing any derogatory or discriminatory sentiment towards a particular group.</div>
+  <div class="targets">Target groups: Police officers, None explicitly mentioned</div>
+  
+</div>
+
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#28</span>
+    <span class="card-text">Why was so much money given to Ukraine? There are roads, infrastructure, bridges and a border that needs protecting in the US.</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-nothate">not hate</span>
+    <span class="badge b-conf">62.3%</span>
+    <span class="badge b-low">severity: low</span>
+    <span class="badge b-allow">allow</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.5501</span><span class="p-lhate">[hate]</span><span class="p-cited">James Lindsay: we have to be good and send ukraine another $ 100b to be laundered a year every year : so george floyd wi ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.5369</span><span class="p-lnothate">[not hate]</span><span class="p-cited">Labor migrants transfer almost $ 10 billion a year to Ukraine https://t.co/sVUPqDoH2q ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.5313</span><span class="p-lnothate">[not hate]</span><span class="p-cited">us sending weapons to #kiev not the answer to #ukraine crisis white house adviser ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was allowed because it expresses a concern about US infrastructure and border protection, without directly promoting hate or violence towards any group, and the retrieved evidence passages do not indicate a clear intent to harm or discriminate.</div>
+  <div class="targets">Target groups: Ukrainians, US citizens</div>
+  <div class="note-box">Note: The content may be seen as nationalist or protectionist, but does not contain explicit hate speech.</div>
+</div>
+
+<div class="card wrong">
+  <div class="card-header">
+    <span class="card-id">#29</span>
+    <span class="card-text">Jews can't force anyone to do anything. Blame retarded whites for allowing a fraction of the population to dictate the nation's direction.</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-wrong">wrong</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">95.1%</span>
+    <span class="badge b-high">severity: high</span>
+    <span class="badge b-autoblock">auto-block</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.6695</span><span class="p-lhate">[hate]</span><span class="p-cited">you're right . trying to bow down to the jewish control and begging for ' white control ' is stupid . they ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.6652</span><span class="p-lhate">[hate]</span><span class="p-cited">why do we let jews control our society  frame every issue &amp; dictate our historical and political paradigms ? #questionsi ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.6467</span><span class="p-lhate">[hate]</span><span class="p-cited">jew supremacists call for mass invasion of america  demand all non-jews be deported from israel ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged for hate speech due to its derogatory language towards Jews and individuals with intellectual disabilities, as well as its promotion of divisive and discriminatory ideologies. The text implies that a specific group is controlling the nation's direction and blames another group for allowing this to happen.</div>
+  <div class="targets">Target groups: Jews, people with intellectual disabilities</div>
+  <div class="note-box">Note: The text contains strong anti-Semitic and ableist language, and its tone is inflammatory and discriminatory.</div>
+</div>
+
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#30</span>
+    <span class="card-text">I don't plan on having children. I have 2 nieces and 4 nephews and I don't even like being around them on holidays.</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-nothate">not hate</span>
+    <span class="badge b-conf">77.4%</span>
+    <span class="badge b-low">severity: low</span>
+    <span class="badge b-allow">allow</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.6073</span><span class="p-lnothate">[not hate]</span><span class="p-cited">I'm 22 years of age and I plan to have 3-4 kids but I do n't feel I can be a father now , I will start have my kids arou ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.6054</span><span class="p-lnothate">[not hate]</span><span class="p-cited">I want to have 3 children ! 2 girls and 1 boy but the hardest part now is i got to try and find someone to make them wit ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.5231</span><span class="p-lhate">[hate]</span><span class="p-cited">id like kids eventually. but not now. as for your sterlization. that is great. there really is no use for ppl to produce ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was allowed because it expresses a personal preference not to have children and mentions not enjoying time with nieces and nephews, without containing hate speech towards any specific group.</div>
+  <div class="targets">Target groups: children, parents</div>
+  
+</div>
+
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#31</span>
+    <span class="card-text">i know this is a groid but if someone did that to anyone in my family or a friend they would have a real real hard time coming to them</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-hate">hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">80.4%</span>
+    <span class="badge b-high">severity: high</span>
+    <span class="badge b-autoblock">auto-block</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 2 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.4347</span><span class="p-lhate">[hate]</span><span class="p-cited">Nevermind, found the new page Knew it had to be a groid .... any report of rape ? ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.4221</span><span class="p-lhate">[hate]</span><span class="p-cited">as a brit my knowledge of american law is somewhat lacking but even i know this holder groid has committed ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged due to the use of a racial slur ('groid') and a threat of violence, indicating hate speech. The language used is aggressive and targets a specific group.</div>
+  <div class="targets">Target groups: African Americans</div>
+  <div class="note-box">Note: Review for context, but the use of the slur and threat suggests a clear intent to intimidate or harass.</div>
+</div>
+
+<div class="card wrong">
+  <div class="card-header">
+    <span class="card-id">#32</span>
+    <span class="card-text">Kike woman singer got booed?</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-wrong">wrong</span>
+    GT: <span class="badge b-hate">hate</span>
+    Pred: <span class="badge b-nothate">not hate</span>
+    <span class="badge b-conf">90.5%</span>
+    <span class="badge b-low">severity: low</span>
+    <span class="badge b-review">human-review</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.4889</span><span class="p-lhate">[hate]</span><span class="p-cited">Ron Edwards: crew left the concert immediately afterward, women and children in tow. on the way out, they were told by i ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.4839</span><span class="p-lnothate">[not hate]</span><span class="p-text">Funny part was that just when they were singing the only song that was in English , it started to rain and lighting bolt</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.4689</span><span class="p-lhate">[hate]</span><span class="p-cited">Jason Kessler: she shouted obscenities at kessler as he attended the trial of “ unite the right ” counter - protester de ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was classified as 'not hate' due to the lack of clear evidence linking it to hate speech, despite the presence of a derogatory term. The context provided by the evidence passages does not strongly support a hate speech classification.</div>
+  <div class="targets">Target groups: Jewish people, Women</div>
+  <div class="note-box">Note: The term 'Kike' is derogatory, but without more context, it's unclear if the intent is hate speech; human review is recommended to assess the context and intent.</div>
+</div>
+
+<div class="card wrong">
+  <div class="card-header">
+    <span class="card-id">#33</span>
+    <span class="card-text">Why do you keep coming back? Isn't it obvious we don't want you here by now?</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-wrong">wrong</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">53.5%</span>
+    <span class="badge b-medium">severity: medium</span>
+    <span class="badge b-review">human-review</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.4716</span><span class="p-lhate">[hate]</span><span class="p-cited">I dont believe i or anyone living today brought you here or wanted you here . ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.4663</span><span class="p-lnothate">[not hate]</span><span class="p-text">THe thing i was asking if it is alright if i remain here afterwards ?</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.4638</span><span class="p-lhate">[hate]</span><span class="p-cited">correct, they're not. so why are they here? get rid! ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged as hate speech due to its hostile tone and implication of unwelcome, as seen in phrases similar to those found in evidence passages. The language used suggests a desire to exclude or remove someone.</div>
+  <div class="targets">Target groups: unspecified individuals or groups</div>
+  <div class="note-box">Note: Review for context to determine if the language is directed at a specific individual or group, and assess the intent behind the statement.</div>
+</div>
+
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#34</span>
+    <span class="card-text">Based nords commit tkd</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-hate">hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">57.3%</span>
+    <span class="badge b-medium">severity: medium</span>
+    <span class="badge b-review">human-review</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 1 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.4045</span><span class="p-lhate">[hate]</span><span class="p-cited">thank odin they do due north n t try to come in the modern day ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged as hate speech due to its similarity to a passage that references a Norse deity in a potentially exclusionary manner. The phrase 'Based nords' may be interpreted as a derogatory or divisive term.</div>
+  <div class="targets">Target groups: Norse or Scandinavian people, People of other ethnic or cultural backgrounds</div>
+  <div class="note-box">Note: Review the context in which 'Based nords' is used to determine if it is intended to be derogatory or divisive.</div>
+</div>
+
+<div class="card wrong">
+  <div class="card-header">
+    <span class="card-id">#35</span>
+    <span class="card-text">Say this next time, shorter</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-wrong">wrong</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">93.9%</span>
+    <span class="badge b-low">severity: low</span>
+    <span class="badge b-review">human-review</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.3326</span><span class="p-lhate">[hate]</span><span class="p-cited">i regret being rude to the guy in the wheelchair at the traffic lights crossing because theres no way he could have hear ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.3307</span><span class="p-lhate">[hate]</span><span class="p-cited">i regret being rude to the at in the what guy the traffic lights crossing because theres no way he could have heard whee ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.3172</span><span class="p-lhate">[hate]</span><span class="p-cited">asians use long words that make more sound them intelligent ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The text 'Say this next time, shorter' was flagged as hate speech with high confidence, although the provided evidence passages do not directly support this classification, suggesting a potential misclassification.</div>
+  <div class="targets">Target groups: people with disabilities, Asians</div>
+  <div class="note-box">Note: Review the classification decision as the provided evidence does not clearly support the hate speech label.</div>
+</div>
+
+<div class="card wrong">
+  <div class="card-header">
+    <span class="card-id">#36</span>
+    <span class="card-text">If I get digits a g5 solar flare happens tomorrow and causes TND</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-wrong">wrong</span>
+    GT: <span class="badge b-hate">hate</span>
+    Pred: <span class="badge b-nothate">not hate</span>
+    <span class="badge b-conf">94.6%</span>
+    <span class="badge b-low">severity: low</span>
+    <span class="badge b-allow">allow</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 1 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.5722</span><span class="p-lnothate">[not hate]</span><span class="p-cited">Sun releases massive solar flare - NASA video - YouTube slideshow from cnn Huge solar flares light up for NASA cameras - ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was allowed because it appears to be discussing a hypothetical scenario involving a solar flare, without expressing hate or intolerance towards any group. The language used is speculative and does not contain derogatory terms.</div>
+  <div class="targets">Target groups: —</div>
+  
+</div>
+
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#37</span>
+    <span class="card-text">Remember this they are all human. There is no god given right for them to rule us. Anons have as much of a qualification to rule as a million zog politicians.</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-hate">hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">92.9%</span>
+    <span class="badge b-high">severity: high</span>
+    <span class="badge b-autoblock">auto-block</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.4782</span><span class="p-lnothate">[not hate]</span><span class="p-text">no i understand why people are anon  just dont like the reasons why . identify europa are snobs it turns out .</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.4684</span><span class="p-lnothate">[not hate]</span><span class="p-cited">white supremacists are pretending to be anons now ? because the ron paultards weren't enough ? ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.4389</span><span class="p-lhate">[hate]</span><span class="p-cited">Conspiracy Propagandists: ##anon movement. when president donald trump left office in 2020, qanon persisted and spread,  ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged as hate speech due to its derogatory tone towards politicians and the mention of 'zog', a term often associated with anti-Semitic conspiracy theories. The language used implies a sense of superiority and disdain towards certain groups.</div>
+  <div class="targets">Target groups: politicians, Jewish people</div>
+  <div class="note-box">Note: Review for potential anti-Semitic hate speech and conspiracy theories</div>
+</div>
+
+<div class="card wrong">
+  <div class="card-header">
+    <span class="card-id">#38</span>
+    <span class="card-text">Give all of the ukraine to Russia.</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-wrong">wrong</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">93.6%</span>
+    <span class="badge b-high">severity: high</span>
+    <span class="badge b-autoblock">auto-block</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.5360</span><span class="p-lhate">[hate]</span><span class="p-cited">KILL ALL ABANIAN,TURKISH,AND BOSNIAN PIGS AND CLEAN EUROPE FROM DIRTY ISLAM!!!!!!!!!!!!!!! ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.5125</span><span class="p-lhate">[hate]</span><span class="p-cited">Ukraine needs to rid itself of these Jewish Oligarchs . ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.4980</span><span class="p-lhate">[hate]</span><span class="p-cited">Declare Martial Law and put them in detention camps and hunt down and exterminate every Muslim terrorist. ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged as hate speech due to its call for territorial annexation, which is similar in tone and intent to passages that express violent xenophobia and bigotry. The language used implies a desire to erase or dominate a particular group or nation.</div>
+  <div class="targets">Target groups: Ukrainians, Russians</div>
+  <div class="note-box">Note: The content's demand for territorial transfer is reminiscent of passages that advocate for violence and discrimination against specific ethnic and religious groups, as seen in evidence passages 1, 2, and 3.</div>
+</div>
+
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#39</span>
+    <span class="card-text">liberal spoiled faggots create bad times. this is the fate of all western and southern europe.</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-hate">hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">86.0%</span>
+    <span class="badge b-high">severity: high</span>
+    <span class="badge b-autoblock">auto-block</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.5255</span><span class="p-lnothate">[not hate]</span><span class="p-cited">europe is full of liberals who have given their country &amp; children's future away ! ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.4967</span><span class="p-lnothate">[not hate]</span><span class="p-cited">rise of retards .is it an alarm to europe or to the world itself. ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.4929</span><span class="p-lnothate">[not hate]</span><span class="p-text">I can only hope that today 's events will help teach the European people that they 're traveling down a very bad road ..</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged due to its derogatory language and discriminatory tone towards liberals and a specific group, indicating hate speech. The language used is similar to passages that express negative sentiments towards certain groups.</div>
+  <div class="targets">Target groups: liberals, LGBTQ+ individuals</div>
+  <div class="note-box">Note: The content contains a slur and expresses a negative sentiment towards a specific group, warranting immediate blocking.</div>
+</div>
+
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#40</span>
+    <span class="card-text">How am I supposed to go drinking if its illegal to drink and drive? You cant drink anywhere you cant walk to unless someone else does the driving.</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-nothate">not hate</span>
+    <span class="badge b-conf">50.5%</span>
+    <span class="badge b-low">severity: low</span>
+    <span class="badge b-allow">allow</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.3849</span><span class="p-lhate">[hate]</span><span class="p-cited">RT @JWMofficial: I don't see why drinking and driving is such a big deal. Letting women drive is just as hazardous! ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.3786</span><span class="p-lhate">[hate]</span><span class="p-cited">only places my wife can obviously drive are to restaurants and grocery stores ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.3713</span><span class="p-lhate">[hate]</span><span class="p-cited">only places my wife can absolutely drive are to restaurants and grocery stores ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The text was allowed because it does not contain hate speech, but rather a complaint about the logistics of drinking and driving. The language used is neutral and does not target any specific group.</div>
+  <div class="targets">Target groups: —</div>
+  
+</div>
+
+<div class="card wrong">
+  <div class="card-header">
+    <span class="card-id">#41</span>
+    <span class="card-text">TKD GTKRWN</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-wrong">wrong</span>
+    GT: <span class="badge b-hate">hate</span>
+    Pred: <span class="badge b-nothate">not hate</span>
+    <span class="badge b-conf">65.3%</span>
+    <span class="badge b-medium">severity: medium</span>
+    <span class="badge b-review">human-review</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.5863</span><span class="p-lhate">[hate]</span><span class="p-cited">GTKRWN: : gtk gtkrwn ( also gtk rwn ) is a white supremacist acronym for the racist and antisemitic slogan “ gas the kik ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.5642</span><span class="p-lhate">[hate]</span><span class="p-cited">GTKRWN: ##ab may 03, 2022 hate on display / gtkrwn - hate acronyms / abbreviations xx min read alternate names : gtk gtk ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.5633</span><span class="p-lhate">[hate]</span><span class="p-cited">GTKRWN: use the first part of the acronym : gtk. the slogan appears to have been created around 2014 and is most associa ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content 'TKD GTKRWN' was classified as not hate with moderate confidence due to the presence of the acronym 'GTKRWN', which is associated with white supremacist and antisemitic ideologies, but its usage in the given context is unclear. The decision is based on the retrieved evidence passages that describe 'GTKRWN' as a hate acronym.</div>
+  <div class="targets">Target groups: Jewish people, Minority groups</div>
+  <div class="note-box">Note: Review the context in which 'GTKRWN' is used to determine if it is being promoted or condemned.</div>
+</div>
+
+<div class="card wrong">
+  <div class="card-header">
+    <span class="card-id">#42</span>
+    <span class="card-text">WPWW</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-wrong">wrong</span>
+    GT: <span class="badge b-hate">hate</span>
+    Pred: <span class="badge b-nothate">not hate</span>
+    <span class="badge b-conf">92.6%</span>
+    <span class="badge b-low">severity: low</span>
+    <span class="badge b-allow">allow</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.6678</span><span class="p-lhate">[hate]</span><span class="p-cited">WPWW ! ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.5127</span><span class="p-lhate">[hate]</span><span class="p-cited">WPWW 14/88 ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.5123</span><span class="p-lnothate">[not hate]</span><span class="p-cited">W.W.P ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content 'WPWW' was allowed because it does not explicitly contain hate speech, despite similarities to potentially problematic phrases in the evidence passages.</div>
+  <div class="targets">Target groups: —</div>
+  
+</div>
+
+<div class="card wrong">
+  <div class="card-header">
+    <span class="card-id">#43</span>
+    <span class="card-text">The ideology seems inherently suicidal</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-wrong">wrong</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">92.4%</span>
+    <span class="badge b-high">severity: high</span>
+    <span class="badge b-review">human-review</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.5295</span><span class="p-lhate">[hate]</span><span class="p-cited">`` this is the ideology of islam : have a church , create a community , claim victimhood , gain support from government  ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.5286</span><span class="p-lhate">[hate]</span><span class="p-cited">`` this is the ideology of islam : have a holy place , create a community , claim victimhood , gain support from governm ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.5259</span><span class="p-lhate">[hate]</span><span class="p-text">Stefan Molyneux: that this institute “ promotes a type of darwinian view of society in which elites are seen as natural </span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The text was flagged as hate speech due to its potentially derogatory implication towards an ideology, with retrieved evidence passages suggesting a similar tone and context of criticism towards a specific ideology. The language used implies a negative and critical view, which may be perceived as hateful.</div>
+  <div class="targets">Target groups: Islamic community</div>
+  <div class="note-box">Note: Review for potential Islamophobic content and consider context of 'ideology' mentioned in the text.</div>
+</div>
+
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#44</span>
+    <span class="card-text">Since when is a SSGT an officer?</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-nothate">not hate</span>
+    <span class="badge b-conf">90.7%</span>
+    <span class="badge b-low">severity: low</span>
+    <span class="badge b-allow">allow</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.4503</span><span class="p-lhate">[hate]</span><span class="p-cited">United Constitutional Patriots: officer. hopkins was most recently arrested on april 20, 2019, for possession of a firea ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.4293</span><span class="p-lhate">[hate]</span><span class="p-cited">Veterans on Patrol: health facility for mental evaluation and then transferred to the country jail to await a hearing on ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.4282</span><span class="p-lhate">[hate]</span><span class="p-cited">Antigovernment General: ##a ), the flagship constitutional sheriffs organization in the country, continues to recruit la ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was allowed because it does not contain hate speech, but rather appears to be a question about military rank. The language used is inquiring and does not express hostility or discrimination towards any group.</div>
+  <div class="targets">Target groups: —</div>
+  
+</div>
+
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#45</span>
+    <span class="card-text">Context?</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-nothate">not hate</span>
+    <span class="badge b-conf">71.9%</span>
+    <span class="badge b-low">severity: low</span>
+    <span class="badge b-allow">allow</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.4277</span><span class="p-lhate">[hate]</span><span class="p-cited">Vinlanders Social Club: black woman judge peering down on him from the bench. when she announced that she was barring hi ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.4192</span><span class="p-lhate">[hate]</span><span class="p-cited">Paul Nehlen: aftermath of that attack. the episode was titled “ canonization, ” which refers to the public celebration o ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.4049</span><span class="p-lhate">[hate]</span><span class="p-cited">Gays Against Groomers: , bottcher tweeted a video of the people he identified as drag story hour protesters assaulting o ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The text 'Context?' was classified as not hate speech with a confidence of 0.72, likely due to its lack of explicit content or targeting of specific groups, as seen in the provided evidence passages which discuss hate groups but are not directly related to the text in question.</div>
+  <div class="targets">Target groups: —</div>
+  
+</div>
+
+<div class="card wrong">
+  <div class="card-header">
+    <span class="card-id">#46</span>
+    <span class="card-text">Do you buy this or watch it online?</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-wrong">wrong</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">54.8%</span>
+    <span class="badge b-medium">severity: medium</span>
+    <span class="badge b-review">human-review</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.3237</span><span class="p-lnothate">[not hate]</span><span class="p-text">I just buy the movies/shows I like on DVD .</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.3123</span><span class="p-lhate">[hate]</span><span class="p-cited">I will at least never willingly pay to see this propaganda , maybe just watch it for free to show the influence the jews ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.3097</span><span class="p-lnothate">[not hate]</span><span class="p-cited">I stop on BET sometimes to reassure my desires to fight their progression and get in the know about their latest crap . ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged due to its similarity to passages containing hate speech, despite its neutral wording. The model likely detected subtle implications of hate speech from the retrieved evidence passages.</div>
+  <div class="targets">Target groups: Jewish people, African Americans</div>
+  <div class="note-box">Note: Review the context in which the question was asked to determine if it was used to express hate speech or if it was a genuine inquiry.</div>
+</div>
+
+<div class="card wrong">
+  <div class="card-header">
+    <span class="card-id">#47</span>
+    <span class="card-text">birds aren't real</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-wrong">wrong</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">79.3%</span>
+    <span class="badge b-low">severity: low</span>
+    <span class="badge b-review">human-review</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.4778</span><span class="p-lhate">[hate]</span><span class="p-cited">birds (plural of bird): Hatebase entry for birds (plural of bird). Target category: Female. Filter group: gender. Langua ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.4629</span><span class="p-lhate">[hate]</span><span class="p-cited">bird: Hatebase entry for bird. Target category: Female. Filter group: gender. Language: English. Offensiveness: Mildly o ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.4119</span><span class="p-lnothate">[not hate]</span><span class="p-text">Were you to ever witness the `` fighting unto death '' displayed by game fowl you 'd soon discover that theres nothing c</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged as hate speech due to the phrase 'birds aren't real' potentially being associated with mildly offensive language towards females, as indicated by Hatebase entries for 'birds' and 'bird'.</div>
+  <div class="targets">Target groups: Female</div>
+  <div class="note-box">Note: Review the context in which 'birds aren't real' is used to determine if it's being used in a hateful manner towards females.</div>
+</div>
+
+<div class="card wrong">
+  <div class="card-header">
+    <span class="card-id">#48</span>
+    <span class="card-text">USA's presidential primaries are like flushing a toilet and watching which turd goes down first.</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-wrong">wrong</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">54.7%</span>
+    <span class="badge b-medium">severity: medium</span>
+    <span class="badge b-review">human-review</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.3929</span><span class="p-lhate">[hate]</span><span class="p-cited">Cody Rutledge Wilson: politics. there ’ s the media telling you barack obama versus mitt romney is like, the epic clash  ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.3833</span><span class="p-lhate">[hate]</span><span class="p-text">cucks  mormons ( glenn beck and romney )  carson dropping out  rubio tanking are why i think idaho goes for cruz</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.3806</span><span class="p-lhate">[hate]</span><span class="p-cited">Thomas Rousseau: just the election of who is president. it is a referendum on american democracy. a simple decision betw ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged as hate speech due to its derogatory comparison of presidential candidates to 'turd', implying a strong negative sentiment towards the political process and its participants. The language used is demeaning and disrespectful, which aligns with hate speech characteristics found in passages like [1] and [3].</div>
+  <div class="targets">Target groups: politicians, USA citizens</div>
+  <div class="note-box">Note: Review for potential violation of community guidelines regarding respectful discussion of political topics.</div>
+</div>
+
+<div class="card wrong">
+  <div class="card-header">
+    <span class="card-id">#49</span>
+    <span class="card-text">That level of gingivitis is staggering.</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-wrong">wrong</span>
+    GT: <span class="badge b-nothate">not hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">52.3%</span>
+    <span class="badge b-low">severity: low</span>
+    <span class="badge b-review">human-review</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.3417</span><span class="p-lhate">[hate]</span><span class="p-cited">Wayne Lutton: ##dental quarterly _. in his own words “ we are going extinct. you don ’ t need great interpreters to read ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.3258</span><span class="p-lnothate">[not hate]</span><span class="p-cited">When you wake up and your mouth is drier than the Sahara desert https://t.co/SBJppDP9Lq ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.3239</span><span class="p-lnothate">[not hate]</span><span class="p-cited">When the gut rot kicks in after a long weekend of drinking https://t.co/DltmhryxtZ ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged as hate speech due to its potential to be interpreted as derogatory, although the language used is more related to a medical condition, and the confidence level is relatively low. The decision is based on the context provided by the evidence passages.</div>
+  <div class="targets">Target groups: individuals with dental health issues</div>
+  <div class="note-box">Note: Review the context in which the statement about gingivitis is made to determine if it's actually hate speech or just a statement about a medical condition.</div>
+</div>
+
+<div class="card correct">
+  <div class="card-header">
+    <span class="card-id">#50</span>
+    <span class="card-text">wtf fuck these mudslimic terrorists for killing these white men</span>
+  </div>
+  <div class="badges">
+    <span class="badge b-correct">correct</span>
+    GT: <span class="badge b-hate">hate</span>
+    Pred: <span class="badge b-hate">hate</span>
+    <span class="badge b-conf">93.8%</span>
+    <span class="badge b-high">severity: high</span>
+    <span class="badge b-autoblock">auto-block</span>
+  </div>
+  <div class="section-lbl">Retrieved evidence · 3 passages · cited = used by LLM</div>
+  <div class="passages"><div class="passage"><span class="p-rank">[1]</span><span class="p-sim">0.6341</span><span class="p-lhate">[hate]</span><span class="p-cited">white european jihad murderers are ok ? ·cited</span></div><div class="passage"><span class="p-rank">[2]</span><span class="p-sim">0.6191</span><span class="p-lhate">[hate]</span><span class="p-cited">them &amp; kill them muslim leader call for 10000 volunteers 2 kill white people ·cited</span></div><div class="passage"><span class="p-rank">[3]</span><span class="p-sim">0.6136</span><span class="p-lhate">[hate]</span><span class="p-cited">more on the muslim refugee indium who tried to behead a policeman in wa islamic state what you have not heard because wh ·cited</span></div></div>
+  <div class="section-lbl">LLM Explanation</div>
+  <div class="llm-box">The content was flagged due to its use of derogatory language and promotion of violence towards a specific religious group, Muslims, and a racial group, implied by the term 'mudslimic' and 'white men'.</div>
+  <div class="targets">Target groups: Muslims, White people</div>
+  <div class="note-box">Note: The language used is highly inflammatory and targets specific groups, indicating a clear intent to incite hate.</div>
+</div>
+</body>
+</html>

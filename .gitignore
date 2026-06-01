@@ -209,9 +209,17 @@ __marimo__/
 
 # Model weights (too large for version control)
 weights/
+weights_rag/
 *.bin
 *.safetensors
 
 # FAISS indexes (too large for version control)
 *.faiss
 .DS_Store
+
+# RAG data folder (large dataset files)
+RAG/data/
+
+
+# Vicomtech dataset (downloaded at runtime by training.ipynb)
+RAG/data/hate-speech-dataset/
