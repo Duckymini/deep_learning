@@ -18,7 +18,7 @@ from tqdm import tqdm
 import urllib.request, zipfile, shutil, pandas as pd
 import warnings
 warnings.filterwarnings('ignore')
-from src.RAG.rag import retrieve_top_k_above_threshold
+from src.rag import retrieve_top_k_above_threshold
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 RAG_DIR         = Path('.')

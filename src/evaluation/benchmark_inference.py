@@ -18,7 +18,7 @@ import faiss
 from pathlib import Path
 from transformers import AutoTokenizer, AutoModel, AutoModelForSequenceClassification
 from datasets import load_dataset
-from src.RAG.rag import retrieve_top_k_above_threshold
+from src.rag import retrieve_top_k_above_threshold
 
 # ── Config ────────────────────────────────────────────────────────────────────
 RAG_DIR         = Path('.')
