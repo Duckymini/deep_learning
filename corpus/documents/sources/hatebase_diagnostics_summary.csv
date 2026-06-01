@@ -1,0 +1,10 @@
+filter_group,filter_name,target_category,rows
+language,english_all,english,50
+sexual_orientation,homosexuals,Homosexuals,50
+gender,female,Female,43
+ethnicity,african_american,African American,39
+religion,judaism,Judaism,38
+religion,islam,Islam,36
+ethnicity,african,African,32
+ethnicity,arabs,Arabs,31
+gender,transgender,Transgender,2
