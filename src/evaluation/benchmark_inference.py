@@ -6,10 +6,10 @@ Reports samples/sec and GPU memory, matching the format of
 Cheremetiev et al. Table 8 for a fair comparison.
 
 Usage:
-    cd /scratch/deep_learning/RAG
-    python benchmark_inference.py
+    python src/evaluation/benchmark_inference.py
 """
 
+import sys
 import time
 import json
 import numpy as np
@@ -18,12 +18,14 @@ import faiss
 from pathlib import Path
 from transformers import AutoTokenizer, AutoModel, AutoModelForSequenceClassification
 from datasets import load_dataset
-from src.rag import retrieve_top_k_above_threshold
+
+_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_ROOT / 'src'))
+from rag import retrieve_top_k_above_threshold
 
 # ── Config ────────────────────────────────────────────────────────────────────
-RAG_DIR         = Path('.')
-INDEX_DIR       = RAG_DIR / 'index'
-CLASSIFIER_DIR  = Path('..') / 'weights_rag' / 'roberta' / 'sbert' / 'full' / 'IHC'
+INDEX_DIR       = _ROOT / 'corpus' / 'index'
+CLASSIFIER_DIR  = _ROOT / 'weigths' / 'weights_rac_best_hyperparameters' / 'roberta' / 'sbert' / 'full' / 'IHC'
 RETRIEVER_HF_ID = 'sentence-transformers/all-mpnet-base-v2'
 
 K          = 5
@@ -42,7 +44,7 @@ ret_tokenizer = AutoTokenizer.from_pretrained(RETRIEVER_HF_ID)
 ret_model     = AutoModel.from_pretrained(RETRIEVER_HF_ID).eval().to(device)
 
 print('Loading FAISS full index ...')
-ret_index = faiss.read_index(str(INDEX_DIR / 'sbert' / 'vdb_full.faiss'))
+ret_index = faiss.read_index(str(INDEX_DIR / 'vdb_full.faiss'))
 with open(INDEX_DIR / 'lookup_full.json') as f:
     ret_documents = json.load(f)
 print(f'  {ret_index.ntotal:,} vectors')

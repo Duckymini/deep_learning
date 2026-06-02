@@ -1,12 +1,12 @@
 """
-Evaluates all 36 trained models (9 no-index + 27 RAC) and saves
-full-precision F1/P/R results to ../results/all_results.json.
+Evaluates all trained models (no-index baselines + RAC) and saves
+full-precision F1/P/R results to results/all_results.json.
 
-Run on RCP:
-    cd /scratch/deep_learning/RAG && python evaluate_all.py
+Run with:
+    python src/evaluation/evaluate_all.py
 """
 
-import os, json
+import sys, os, json
 from pathlib import Path
 import numpy as np
 import torch
@@ -18,14 +18,17 @@ from tqdm import tqdm
 import urllib.request, zipfile, shutil, pandas as pd
 import warnings
 warnings.filterwarnings('ignore')
-from src.rag import retrieve_top_k_above_threshold
+
+_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_ROOT / 'src'))
+from rag import retrieve_top_k_above_threshold
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-RAG_DIR         = Path('.')
-INDEX_DIR       = RAG_DIR / 'index'
-WEIGHTS_DIR     = Path('..') / 'weights'
-WEIGHTS_RAG_DIR = Path('..') / 'weights_rag_best_hp'
-RESULTS_FILE    = Path('..') / 'results' / 'all_results.json'
+INDEX_DIR       = _ROOT / 'corpus' / 'index'
+WEIGHTS_DIR     = _ROOT / 'weigths' / 'weights_baseline'
+WEIGHTS_RAC_DIR = _ROOT / 'weigths' / 'weights_rac_best_hyperparameters'
+RESULTS_FILE    = _ROOT / 'results' / 'all_results.json'
+DATA_DIR        = _ROOT / 'data'
 
 RETRIEVER_HF_ID = 'sentence-transformers/all-mpnet-base-v2'
 
@@ -46,13 +49,7 @@ MODEL_MAP = {
     'roberta':  'roberta-base',
 }
 
-BASELINE_WEIGHT_MAP = {
-    'bert':     'bert-base-uncased',
-    'hatebert': 'hateBERT',
-    'roberta':  'roberta-base',
-}
-
-INDEX_TYPES = ['training', 'documents', 'full']
+INDEX_TYPES = ['example', 'knowledge', 'full']
 DATASETS    = ['IHC', 'ISHate', 'Vicomtech']
 MODELS      = ['bert', 'hatebert', 'roberta']
 
@@ -78,20 +75,20 @@ def add_binary_label_ishate(example):
 
 test_ishate = ishate_raw['test'].map(add_binary_label_ishate)
 
-_repo_dir      = str(RAG_DIR / 'data' / 'hate-speech-dataset')
+_repo_dir      = str(DATA_DIR / 'hate-speech-dataset')
 _metadata_path = f'{_repo_dir}/annotations_metadata.csv'
 _test_dir      = f'{_repo_dir}/sampled_test'
 
 if not all(os.path.exists(p) for p in [_metadata_path, _test_dir]):
     if os.path.isdir(_repo_dir):
         shutil.rmtree(_repo_dir)
-    os.makedirs(str(RAG_DIR / 'data'), exist_ok=True)
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
     _zip_url  = 'https://github.com/Vicomtech/hate-speech-dataset/archive/refs/heads/master.zip'
-    _zip_path = str(RAG_DIR / 'data' / 'hate-speech-dataset.zip')
+    _zip_path = str(DATA_DIR / 'hate-speech-dataset.zip')
     urllib.request.urlretrieve(_zip_url, _zip_path)
     with zipfile.ZipFile(_zip_path, 'r') as zf:
-        zf.extractall(str(RAG_DIR / 'data'))
-    os.rename(str(RAG_DIR / 'data' / 'hate-speech-dataset-master'), _repo_dir)
+        zf.extractall(str(DATA_DIR))
+    os.rename(str(DATA_DIR / 'hate-speech-dataset-master'), _repo_dir)
     os.remove(_zip_path)
 
 _metadata = pd.read_csv(_metadata_path).set_index('file_id')
@@ -194,9 +191,8 @@ print('EVALUATING NO-INDEX BASELINES')
 print('='*60)
 
 for model_key in MODELS:
-    weight_name = BASELINE_WEIGHT_MAP[model_key]
     for ds_name in DATASETS:
-        weight_path = WEIGHTS_DIR / f'{weight_name}_{ds_name}'
+        weight_path = WEIGHTS_DIR / model_key / ds_name
         print(f'  {model_key} | no-index | {ds_name} ...', end=' ', flush=True)
         tokenizer = AutoTokenizer.from_pretrained(str(weight_path))
         model     = AutoModelForSequenceClassification.from_pretrained(str(weight_path)).to(device)
@@ -233,7 +229,7 @@ ret_model     = AutoModel.from_pretrained(RETRIEVER_HF_ID).eval().to(device)
 print('Retriever ready.\n')
 
 for index_type in INDEX_TYPES:
-    ret_index = faiss.read_index(str(INDEX_DIR / 'sbert' / f'vdb_{index_type}.faiss'))
+    ret_index = faiss.read_index(str(INDEX_DIR / f'vdb_{index_type}.faiss'))
     with open(INDEX_DIR / f'lookup_{index_type}.json') as f:
         ret_documents = json.load(f)
     print(f'\n--- Index: {index_type} ({ret_index.ntotal:,} vectors) ---')
@@ -254,7 +250,7 @@ for index_type in INDEX_TYPES:
         threshold = BEST_PARAMS[model_key]['threshold']
 
         for ds_name in DATASETS:
-            weight_path = WEIGHTS_RAG_DIR / model_key / 'sbert' / index_type / ds_name
+            weight_path = WEIGHTS_RAC_DIR / model_key / 'sbert' / index_type / ds_name
             print(f'  {model_key} | {index_type} | {ds_name} ...', end=' ', flush=True)
 
             clf_tokenizer = AutoTokenizer.from_pretrained(str(weight_path))
