@@ -1,3 +1,0 @@
-[submodule "data/hate-speech-dataset"]
-	path = data/hate-speech-dataset
-	url = https://github.com/Vicomtech/hate-speech-dataset
