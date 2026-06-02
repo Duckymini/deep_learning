@@ -1,29 +1,10 @@
-"""
-Layer 3: LLM Explanation Layer for the hate speech detection pipeline.
-
-Receives Layer 2's classification decision (label, confidence, retrieved passages)
-and produces a structured, auditable explanation suited for website moderation.
-
-The LLM does NOT re-classify — that is Layer 2's job. It only explains.
-
-Supported backends (all free or cheap):
-  - Groq API  : free tier, fast. pip install groq + GROQ_API_KEY env var.
-  - Ollama    : fully local. Install Ollama, run `ollama pull mistral`.
-  - OpenAI    : paid (~$0.15/1M tokens). OPENAI_API_KEY env var.
-"""
-
 from __future__ import annotations
 
 import json
-import os
 import re
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
-
-# ---------------------------------------------------------------------------
-# Data structures
-# ---------------------------------------------------------------------------
 
 @dataclass
 class Layer2Output:
@@ -47,11 +28,7 @@ class ExplainerOutput:
     validation_passed: bool
 
 
-# ---------------------------------------------------------------------------
-# Label prefix utilities
-# ---------------------------------------------------------------------------
-
-_LABEL_RE = re.compile(r"^\[(hate|not hate)\]\s*:?\s*", re.IGNORECASE)
+_LABEL_RE = re.compile(r"^\[(hate|not hate)\]\s*:?\s*", re.IGNORECASE)  # matches "[hate]" or "[not hate]" at the start of a chunk string, with optional colon and surrounding whitespace
 
 
 def _strip_label(text: str) -> str:
@@ -60,12 +37,8 @@ def _strip_label(text: str) -> str:
 
 def _extract_label(text: str) -> str:
     m = _LABEL_RE.match(text)
-    return m.group(1).lower() if m else "unknown"
+    return m.group(1).lower() if m else "unknown"  # group(1) captures the label word inside the brackets
 
-
-# ---------------------------------------------------------------------------
-# Prompt construction
-# ---------------------------------------------------------------------------
 
 _SYSTEM_PROMPT = (
     "You are a content moderation assistant. Your task is to explain a hate speech "
@@ -92,6 +65,19 @@ def build_prompt(
     hate_category: str,
     retrieved: List[Tuple[str, float]],
 ) -> str:
+    """
+    Build the user-turn prompt sent to the LLM.
+
+    Input:
+        original_text : str — the post to moderate
+        label         : str — "hate" or "not hate"
+        confidence    : float — classifier confidence in [0, 1]
+        hate_category : str — detected hate category (e.g. "racism")
+        retrieved     : list of (text_with_label_prefix, cosine_score) pairs
+
+    Output:
+        str — formatted prompt string
+    """
     passages_block = "\n".join(
         f"[{i + 1}] \"{_strip_label(text)}\"  (similarity: {score:.4f})"
         for i, (text, score) in enumerate(retrieved)
@@ -107,14 +93,18 @@ def build_prompt(
     )
 
 
-# ---------------------------------------------------------------------------
-# LLM call
-# ---------------------------------------------------------------------------
-
 def call_llm(prompt: str, client, model: str) -> dict:
     """
     Call any OpenAI-compatible client and return parsed JSON.
     Falls back to plain completion if json_object mode is unsupported (e.g. Ollama).
+
+    Input:
+        prompt : str — formatted user-turn prompt
+        client : OpenAI-compatible client instance
+        model  : str — model identifier
+
+    Output:
+        dict — parsed JSON response from the LLM
     """
     base_kwargs = dict(
         model=model,
@@ -127,23 +117,19 @@ def call_llm(prompt: str, client, model: str) -> dict:
 
     try:
         response = client.chat.completions.create(
-            **base_kwargs, response_format={"type": "json_object"}
+            **base_kwargs, response_format={"type": "json_object"}  # forces the model to output valid JSON; not all backends support this parameter
         )
     except Exception:
-        response = client.chat.completions.create(**base_kwargs)
+        response = client.chat.completions.create(**base_kwargs)  # fallback for backends that don't support response_format (e.g. Ollama)
 
     content = response.choices[0].message.content.strip()
 
-    # Strip markdown code fences that some models add despite instructions
+    # some models wrap their JSON in markdown code fences despite the system prompt; strip them before parsing
     content = re.sub(r"^```(?:json)?\n?", "", content)
     content = re.sub(r"\n?```$", "", content)
 
     return json.loads(content)
 
-
-# ---------------------------------------------------------------------------
-# Output validation
-# ---------------------------------------------------------------------------
 
 _REQUIRED_FIELDS = {"summary", "evidence_used", "target_groups", "severity", "recommended_action"}
 _VALID_SEVERITIES = {"low", "medium", "high"}
@@ -152,19 +138,22 @@ _VALID_ACTIONS = {"auto-block", "human-review", "allow"}
 
 def validate_output(raw: dict, n_passages: int) -> bool:
     """
-    Returns True only if:
-    - all required fields are present and non-empty
-    - evidence_used contains only integers in [1, n_passages]
-    - severity and recommended_action are recognized values
-
+    Check LLM output structure before building an ExplainerOutput.
     A False return triggers a human-review override in explain().
+
+    Input:
+        raw        : dict — parsed LLM JSON response
+        n_passages : int — number of retrieved passages (upper bound for evidence indices)
+
+    Output:
+        bool — True if all required fields are present, non-empty, and within expected ranges
     """
     if not _REQUIRED_FIELDS.issubset(raw.keys()):
         return False
     if not isinstance(raw["evidence_used"], list) or not raw["evidence_used"]:
         return False
     for idx in raw["evidence_used"]:
-        if not isinstance(idx, int) or not (1 <= idx <= n_passages):
+        if not isinstance(idx, int) or not (1 <= idx <= n_passages):  # indices must be 1-based integers within the actual passage count
             return False
     if raw.get("severity") not in _VALID_SEVERITIES:
         return False
@@ -175,28 +164,19 @@ def validate_output(raw: dict, n_passages: int) -> bool:
     return True
 
 
-# ---------------------------------------------------------------------------
-# Main public API
-# ---------------------------------------------------------------------------
-
 def explain(layer2_output: Layer2Output, client, model: str) -> ExplainerOutput:
     """
     Generate a structured moderation explanation for a Layer 2 classification.
+    The LLM does NOT re-classify — it only explains Layer 2's decision.
 
-    Parameters
-    ----------
-    layer2_output : Layer2Output
-        Classification result from the BERT-RAG layer.
-    client :
-        OpenAI-compatible client — Groq, openai.OpenAI, or Ollama-backed.
-    model : str
-        Model identifier, e.g. "llama3-8b-8192" (Groq) or "mistral" (Ollama).
+    Input:
+        layer2_output : Layer2Output — classification result from the BERT-RAG layer
+        client        : OpenAI-compatible client — Groq, openai.OpenAI, or Ollama-backed
+        model         : str — model identifier, e.g. "llama3-8b-8192" or "mistral"
 
-    Returns
-    -------
-    ExplainerOutput
-        Structured explanation. recommended_action is overridden to "human-review"
-        and validation_passed is False if the LLM output fails validation.
+    Output:
+        ExplainerOutput — structured explanation; recommended_action is overridden to
+        "human-review" and validation_passed is False if LLM output fails validation
     """
     prompt = build_prompt(
         layer2_output.original_text,
@@ -206,13 +186,13 @@ def explain(layer2_output: Layer2Output, client, model: str) -> ExplainerOutput:
         layer2_output.retrieved,
     )
 
-    raw: dict = {}
+    raw: dict = {}  # pre-initialise so the fallback branch can safely call .get() even if call_llm raises before assigning
     valid = False
     try:
         raw = call_llm(prompt, client, model)
         valid = validate_output(raw, len(layer2_output.retrieved))
     except Exception:
-        pass
+        pass  # any LLM or JSON parsing failure falls through to the invalid-output branch below
 
     if not valid:
         return ExplainerOutput(
@@ -220,7 +200,7 @@ def explain(layer2_output: Layer2Output, client, model: str) -> ExplainerOutput:
             evidence_used=raw.get("evidence_used", []),
             target_groups=raw.get("target_groups", []),
             severity=raw.get("severity", "unknown"),
-            recommended_action="human-review",
+            recommended_action="human-review",  # always escalate to human review when the LLM output cannot be trusted
             moderator_note="LLM output failed evidence validation — manual review required.",
             validation_passed=False,
         )
@@ -231,95 +211,6 @@ def explain(layer2_output: Layer2Output, client, model: str) -> ExplainerOutput:
         target_groups=raw["target_groups"],
         severity=raw["severity"],
         recommended_action=raw["recommended_action"],
-        moderator_note=raw.get("moderator_note") or None,
+        moderator_note=raw.get("moderator_note") or None,  # convert empty string "" to None; LLMs sometimes return "" instead of null
         validation_passed=True,
     )
-
-
-# ---------------------------------------------------------------------------
-# KNN Layer 2 — lightweight majority-vote alternative to the full RAG classifier
-# ---------------------------------------------------------------------------
-
-def knn_layer2(
-    original_text: str,
-    retrieved: List[Tuple[str, float]],
-    hate_category: str = "unknown",
-) -> Layer2Output:
-    """
-    Classifies via majority vote on the [hate]/[not hate] prefixes of retrieved neighbors.
-    Confidence = fraction of neighbors that agree with the majority label.
-
-    Simpler and faster than the full RAG classifier — useful for quick tests,
-    ablation studies, or as a KNN baseline to compare against the trained model.
-    """
-    labels = [_extract_label(text) for text, _ in retrieved]
-    hate_count = labels.count("hate")
-    majority_label = "hate" if hate_count >= len(labels) / 2 else "not hate"
-    agreement = hate_count if majority_label == "hate" else (len(labels) - hate_count)
-    confidence = agreement / len(labels) if labels else 0.0
-
-    return Layer2Output(
-        original_text=original_text,
-        label=majority_label,
-        confidence=confidence,
-        hate_category=hate_category,
-        retrieved=retrieved,
-    )
-
-
-# ---------------------------------------------------------------------------
-# Quick demo — run as: python layer3_explainer.py
-# ---------------------------------------------------------------------------
-
-if __name__ == "__main__":
-    # --- Pick your backend ---
-    # Option A: Groq (free, recommended) — set GROQ_API_KEY in your environment
-    # Option B: Ollama (local, free)     — run `ollama serve` and `ollama pull mistral`
-    # Option C: OpenAI (paid)            — set OPENAI_API_KEY in your environment
-
-    groq_key = os.environ.get("GROQ_API_KEY")
-    openai_key = os.environ.get("OPENAI_API_KEY")
-
-    if groq_key:
-        from groq import Groq
-        client = Groq(api_key=groq_key)
-        model = "llama3-8b-8192"
-        print("Backend: Groq (llama3-8b-8192)")
-    elif openai_key:
-        import openai
-        client = openai.OpenAI(api_key=openai_key)
-        model = "gpt-4o-mini"
-        print("Backend: OpenAI (gpt-4o-mini)")
-    else:
-        import openai
-        client = openai.OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
-        model = "mistral"
-        print("Backend: Ollama (mistral) — make sure `ollama serve` is running")
-
-    # --- Example 1: Implicit hate speech (great replacement dog-whistle) ---
-    text1 = "These people are replacing us, look at the crime statistics"
-    retrieved1 = [
-        ("[hate] great replacement theory promotes the idea that white populations are being replaced by immigrants", 0.984),
-        ("[hate] crime statistics are frequently misused to spread racist narratives targeting immigrant communities", 0.981),
-        ("[not hate] immigration policy is a legitimate subject of democratic debate", 0.963),
-    ]
-    l2 = knn_layer2(text1, retrieved1, hate_category="racism")
-    print(f"\n--- Example 1 ---")
-    print(f"Text: {text1}")
-    print(f"Layer 2: {l2.label} ({l2.confidence:.0%} confidence)")
-    result = explain(l2, client, model)
-    print(json.dumps(result.__dict__, indent=2, ensure_ascii=False))
-
-    # --- Example 2: Counter-speech (should route to human-review or allow) ---
-    text2 = "Stop spreading hatred against immigrants, they are humans too"
-    retrieved2 = [
-        ("[not hate] counter-speech directly challenges hate speech and promotes inclusion", 0.977),
-        ("[not hate] expressions of solidarity with marginalized groups are protected discourse", 0.971),
-        ("[hate] immigrants are used as scapegoats in racist political rhetoric", 0.955),
-    ]
-    l2b = knn_layer2(text2, retrieved2)
-    print(f"\n--- Example 2 (counter-speech) ---")
-    print(f"Text: {text2}")
-    print(f"Layer 2: {l2b.label} ({l2b.confidence:.0%} confidence)")
-    result2 = explain(l2b, client, model)
-    print(json.dumps(result2.__dict__, indent=2, ensure_ascii=False))
