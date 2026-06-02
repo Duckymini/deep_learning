@@ -310,7 +310,7 @@ if __name__ == "__main__":
     result = explain(l2, client, model)
     print(json.dumps(result.__dict__, indent=2, ensure_ascii=False))
 
-    # --- Example 2: Counter-speech (should route to human-review or allow) ---
+    # --- Example 2: Counter-speech (should route to human-review or allow)
     text2 = "Stop spreading hatred against immigrants, they are humans too"
     retrieved2 = [
         ("[not hate] counter-speech directly challenges hate speech and promotes inclusion", 0.977),
