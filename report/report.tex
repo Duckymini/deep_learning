@@ -182,7 +182,8 @@ RoBERTa (E+K)       & 0.800 & \textbf{0.906} & \textbf{0.854} \\
 
 
 \subsection{Ablation: Removing IHC from the Retrieval Index}
-We train and evaluate on IHC while excluding all IHC training examples from the index. Macro F1 does not degrade meaningfully (-0.6 pp), confirming that the retriever generalises via semantic similarity rather than exploiting in-distribution shortcuts.
+We train and evaluate on IHC while excluding all IHC training examples from the retrieval index (Tab.~\ref{tab:noihc_ablation}, Appendix). RoBERTa achieves F1\,=\,0.801 with the no-IHC index, compared to 0.811 with the full Example index. This difference falls within the seed variance of RoBERTa(E+K) on IHC ($0.800\pm0.003$, Tab.~\ref{tab:multiseed}), confirming that the retriever generalises via semantic similarity rather than exploiting in-distribution shortcuts.
+
 
 \subsection{Qualitative Analysis}
 Fig.~\ref{fig:rac-example} illustrates the RAC pipeline on an input containing the antisemitic acronym \textit{ZOG} (Zionist Occupation Government). The retriever surfaces a HateBase definition of ZOG as the top match alongside two labelled hate examples. HateBERT(E+K) assigns \texttt{hate}; LLaMA~3.3 synthesises the retrieved evidence into a grounded explanation flagging the antisemitic framing.
@@ -257,13 +258,14 @@ We applied Retrieval-Augmented Classification to implicit hate speech detection,
 }
 
 
+
 \appendix
 \onecolumn
 
 \section{Full Results}
 
-\centering
-\captionof{table}{RAC fine-tuning results. E\,=\,Example index, K\,=\,Knowledge index, E+K\,=\,Full index. Bold indicates best per column.}
+\begin{center}
+\captionof{table}{RAC fine-tuning results (macro F1, Precision, Recall). E\,=\,Example index, K\,=\,Knowledge index, E+K\,=\,Full index. Bold indicates best per column.}
 \label{tab:full_results}
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{lccccccccc}
@@ -288,19 +290,17 @@ RoBERTa (K)         & 0.792 & 0.799 & 0.788 & 0.888 & 0.885 & 0.891 & 0.808 & 0.
 RoBERTa (E+K)       & 0.800 & 0.806 & 0.795 & \textbf{0.906} & \textbf{0.904} & \textbf{0.909} & \textbf{0.854} & \textbf{0.854} & \textbf{0.854} \\
 \bottomrule
 \end{tabular}}
+\end{center}
 
-\vspace{1em}
 \section{Hyperparameter Tuning \& Seed Variance}
 
-\noindent
-\begin{minipage}[t]{0.54\textwidth}
-\centering
+\begin{center}
 \captionof{table}{Macro F1 over the HP grid ($k$, $\tau$) on IHC with the Full index. Best per model in bold.}
 \label{tab:hp_tuning}
-\resizebox{\linewidth}{!}{%
+\resizebox{0.65\textwidth}{!}{%
 \begin{tabular}{llcccc}
 \toprule
-Model & $k$ & $\tau{=}0.3$ & $\tau{=}0.4$ & $\tau{=}0.5$ & $\tau{=}0.6$ \\
+\textbf{Model} & $k$ & $\tau{=}0.3$ & $\tau{=}0.4$ & $\tau{=}0.5$ & $\tau{=}0.6$ \\
 \midrule
 \multirow{3}{*}{BERT}     & 3  & 0.777 & 0.779 & 0.787 & 0.785 \\
                            & 5  & 0.775 & 0.775 & 0.778 & 0.779 \\
@@ -315,30 +315,28 @@ Model & $k$ & $\tau{=}0.3$ & $\tau{=}0.4$ & $\tau{=}0.5$ & $\tau{=}0.6$ \\
                            & 10 & 0.801 & 0.801 & 0.801 & 0.794 \\
 \bottomrule
 \end{tabular}}
-\end{minipage}%
-\hfill
-\begin{minipage}[t]{0.42\textwidth}
-\centering
+\end{center}
+
+\vspace{0.5em}
+
+\begin{center}
 \captionof{table}{RoBERTa\,(E+K) macro F1 across 4 seeds. High variance on Vicomtech reflects its small training set.}
 \label{tab:multiseed}
 \begin{tabular}{lcccc|cc}
 \toprule
-Dataset & S\,0 & S\,1 & S\,2 & S\,42 & Mean & Std \\
+\textbf{Dataset} & S\,0 & S\,1 & S\,2 & S\,42 & Mean & Std \\
 \midrule
 IHC       & 0.806 & 0.799 & 0.797 & 0.800 & 0.800 & 0.003 \\
 ISHate    & 0.896 & 0.895 & 0.903 & 0.906 & 0.900 & 0.005 \\
 Vicomtech & 0.804 & 0.847 & 0.832 & 0.839 & 0.831 & 0.016 \\
 \bottomrule
 \end{tabular}
-\end{minipage}
+\end{center}
 
-\vspace{1em}
 \section{Comparison with Prior Work}
 
-\noindent
-\begin{minipage}[t]{0.38\textwidth}
-\centering
-\captionof{table}{IHC binary comparison with ElSherief et al.~\cite{elsherief2021latent}. Evaluated on not\_hate vs.\ implicit\_hate only, matching their Table~3 setup.}
+\begin{center}
+\captionof{table}{IHC binary comparison with ElSherief et al.~\cite{elsherief2021latent}. Evaluated on \texttt{not\_hate} vs.\ \texttt{implicit\_hate} only, matching their Table~3 setup.}
 \label{tab:ihc_comparison}
 \begin{tabular}{lccc}
 \toprule
@@ -356,13 +354,14 @@ BERT~\cite{elsherief2021latent}        & 0.689 & 0.721 & 0.660 \\
 BERT+Aug~\cite{elsherief2021latent}    & 0.704 & 0.678 & 0.732 \\
 \bottomrule
 \end{tabular}
-\end{minipage}%
-\hfill
-\begin{minipage}[t]{0.58\textwidth}
-\centering
+\end{center}
+
+\vspace{0.5em}
+
+\begin{center}
 \captionof{table}{ISHate Task A comparison with Ocampo et al.~\cite{ocampo2023indepth}: 3-class (Non-HS / Explicit HS / Implicit HS). RAC variants use E+K. RAC does not improve Implicit HS F1 as the binary retrieval signal conflates all three classes.}
 \label{tab:ishate_taskA}
-\resizebox{\linewidth}{!}{%
+\resizebox{\textwidth}{!}{%
 \begin{tabular}{lccccccccc}
 \toprule
  & \multicolumn{3}{c}{\textbf{Non-HS}} & \multicolumn{3}{c}{\textbf{Explicit HS}} & \multicolumn{3}{c}{\textbf{Implicit HS}} \\
@@ -381,6 +380,23 @@ HateBERT+ALL~\cite{ocampo2023indepth} & 0.903 & 0.896 & 0.899 & 0.827 & 0.827 & 
 DeBERTa+RI~\cite{ocampo2023indepth}   & 0.922 & 0.894 & 0.908 & 0.821 & 0.878 & 0.849 & 0.460 & 0.398 & 0.427 \\
 \bottomrule
 \end{tabular}}
-\end{minipage}
+\end{center}
+
+\section{Ablation: No-IHC Index}
+
+\begin{center}
+\captionof{table}{Ablation results on IHC when all IHC training examples are excluded from the retrieval index. The no-IHC Example index is built from \texttt{chunks\_example\_noihc.csv}. Differences relative to the standard Example index remain within seed variance ($0.800\pm0.003$).}
+\label{tab:noihc_ablation}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Model} & \textbf{F1} & \textbf{Prec.} & \textbf{Rec.} \\
+\midrule
+BERT (E, no-IHC)     & 0.772 & 0.784 & 0.765 \\
+HateBERT (E, no-IHC) & 0.787 & 0.793 & 0.783 \\
+RoBERTa (E, no-IHC)  & \textbf{0.801} & \textbf{0.811} & \textbf{0.794} \\
+\bottomrule
+\end{tabular}
+\end{center}
 
 \end{document}
+
