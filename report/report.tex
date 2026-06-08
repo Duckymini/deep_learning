@@ -1,0 +1,379 @@
+% This template has been taken and adapted from ICML 2021 submission file available under Creative Commons CC BY 4.0.
+
+% The main.tex ICML 2021 submission file contains the following attribution:
+
+% "This document was modified from the file originally made available by
+% Pat Langley and Andrea Danyluk for ICML-2K. This version was created
+% by Iain Murray in 2018, and modified by Alexandre Bouchard in
+% 2019 and 2021. Previous contributors include Dan Roy, Lise Getoor and Tobias
+% Scheffer, which was slightly modified from the 2010 version by
+% Thorsten Joachims & Johannes Fuernkranz, slightly modified from the
+% 2009 version by Kiri Wagstaff and Sam Roweis's 2008 version, which is
+% slightly modified from Prasad Tadepalli's 2007 version which is a
+% lightly changed version of the previous year's version by Andrew
+% Moore, which was in turn edited from those of Kristian Kersting and
+% Codrina Lauth. Alex Smola contributed to the algorithmic style files."
+
+% Link to the original template: https://icml.cc/Conferences/2021/StyleAuthorInstructions
+
+% The adaptation of the ICML 2021 submission file was done at the EPFL and Idiap Research Institute by Alina Elena Baia, Darya Baranouskaya and Olena Hrynenko (equal contribution).
+
+\documentclass{article}
+
+% importing the style files
+\input{source/preamble}
+\usepackage[accepted]{source/icml2021}
+\usepackage{caption}
+\usepackage{titlesec}
+
+\titlespacing*{\section}{0pt}{6pt}{3pt}
+\titlespacing*{\subsection}{0pt}{4pt}{2pt}
+
+
+%%%%%%%%% ADD YOUR GROUP NUMBER %%%%%%%%%
+\icmltitlerunning{EE-559 Deep Learning: Group Mini-Project, Group 44}
+
+\begin{document}
+
+\twocolumn[
+%%%%%%%%% ADD TITLE OF YOUR GROUP MINI-PROJECT %%%%%%%%%
+\vspace{-35px}
+\icmltitle{Detect and Explain: RAC and LLM explainability on Implicit hate speech.}
+
+%%%%%%%%% ADD NAMES OF THE GROUP MEMBERS %%%%%%%%%
+\begin{icmlauthorlist}
+\icmlauthor{Pierre\ Bernadet}{ch} \quad
+\icmlauthor{Alexandre\ Potocnik}{ch} \quad
+\icmlauthor{Julie\ Michallat}{ch} \\
+\end{icmlauthorlist}
+
+% adding affiliation information
+\icmlaffiliation{ch}{}
+\centering
+%%%%%%%%% ADD YOUR GROUP NUMBER %%%%%%%%%
+Group 44
+\vskip 0.1in
+]
+
+% command for printing affiliation
+%%\printAffiliationsAndNotice{}
+
+%%%%%%%%% ADD ABSTRACT %%%%%%%%%
+\begin{abstract}
+Implicit hate speech — relying on coded language, dog whistles, and irony — remains significantly harder to detect than its explicit counterpart, while content moderation regulations require justifying removal decisions. We propose a Retrieval-Augmented Classifier (RAC) that grounds fine-tuned transformer encoders in two complementary FAISS indexes: labeled precedents from three benchmark datasets and expert knowledge bases. The Example and Full indexes consistently improve over no-index baselines, with best gains of $+$1.3 F1 on IHC (F1\,=\,0.810), $+$2.7 F1 on ISHate (F1\,=\,0.906), and $+$1.5 F1 on Vicomtech (F1\,=\,0.843). On-demand LLaMA~3.3 explanations anchored to retrieved evidence address explainability requirements without involving an LLM in the classification decision.
+
+%%%%%%%%% ADD KEYWORDS %%%%%%%%%
+% Make sure to keep keywords on a new line.
+\textbf{Keywords:} implicit hate speech, retrieval-augmented classification, explainability, transformer fine-tuning, FAISS
+
+\end{abstract}
+
+%%%%%%%%% ADD INTRODUCTION SECTION %%%%%%%%%
+\section{Introduction}
+\label{sec:intro}
+
+Hate speech detection has made substantial progress with fine-tuned transformer encoders, yet implicit hate speech — relying on coded language, dog whistles, and irony — remains significantly harder to detect \cite{elsherief2021latent, ocampo2023indepth}. Unlike explicit forms, detection requires cultural and contextual knowledge beyond lexical patterns.
+
+The EU Digital Services Act now requires platforms to justify content removal decisions, yet existing encoder-based classifiers offer no explanation mechanism. We address both challenges with a RAC: retrieval grounds detection in labeled precedents and expert knowledge, while providing a natural anchor for human-readable explanation. Concretely, we contribute (1) a RAC pipeline combining a Sentence-BERT retriever \cite{reimers2019sbert} with a dual FAISS index (labeled examples + expert glossaries) feeding a fine-tuned encoder; (2) a systematic evaluation across 3 encoders, 3 datasets, and 3 index configurations; (3) a hyperparameter study ($k$, $\tau$) demonstrating low retrieval sensitivity; and (4) on-demand LLaMA~3.3 \cite{dubey2024llama3} explanations grounded in retrieved evidence, decoupled from the classification decision.
+
+
+%%%%%%%%% ADD RELATED WORK SECTION %%%%%%%%%
+\section{Related Work}
+\label{sec:related_work}
+
+\textbf{Implicit hate speech benchmarks and encoder-based classifiers.}
+ElSherief et al.~\cite{elsherief2021latent} introduce IHC and find that integrating external knowledge graphs yields no performance gain, while models suffer from identity-term bias.
+de~Gibert et al.~\cite{degibert2018hate} note that the Vicomtech corpus's single-source origin limits domain generalisability.
+Ocampo et al.~\cite{ocampo2023indepth} show that state-of-the-art encoders ``fail to detect implicit and subtle content'' across seven benchmarks.
+
+\textbf{RAG for text classification and content moderation.}
+Policy-grounded RAG systems applied to hate speech exist but rely on a generative LLM as the final decision-maker, increasing inference cost and risking hallucinated or weakly grounded decisions when policy documents are incomplete.
+
+\textbf{Current state of the art on IHC.}
+Cheremetiev et al.~\cite{cheremetiev2025specializing} achieve F1-macro of 81.68 on IHC with large embedding models requiring up to 62.4\,GB of GPU memory and no explanation mechanism.
+Our RAC reaches competitive performance (F1\,=\,81.0) with a 125M-parameter encoder, adding retrieval-grounded explainability at a 70$\times$ memory reduction.
+
+
+%%%%%%%%% ADD METHOD SECTION %%%%%%%%%
+\section{Method}
+\label{sec:method}
+
+\subsection{Datasets}
+We use three implicit hate speech benchmarks unified into a binary task: \texttt{not\_hate} (0) vs.\ \texttt{hate} (1). \textbf{IHC}~\cite{elsherief2021latent} contains tweets with explicit and implicit hate labels, collapsed into a single \texttt{hate} class with a 90/10 train/test split. \textbf{ISHate}~\cite{ocampo2023indepth} provides examples with pre-made splits; all hate sub-types are collapsed to binary. \textbf{Vicomtech}~\cite{degibert2018hate} consists posts with pre-made binary splits from a white-supremacist forum called Stormfront.
+
+\subsection{Expert Knowledge Bases}
+We aggregate three hate speech resources: the \textbf{ADL}~\cite{adl} glossary of hate symbols and extremist slang, the \textbf{SPLC}~\cite{splc} annotated extremist terminology, and \textbf{HateBase}~\cite{hatebase}, a crowdsourced multilingual slur repository. After scraping, chunking, and deduplication, these yield 40,951 entries forming the Knowledge index.
+
+\subsection{Vector Index Construction}
+All text is encoded with \textbf{Sentence-BERT}~\cite{reimers2019sbert} and stored in L2-normalised \textbf{FAISS} indexes. We construct three indexes: \textbf{Example (E)}, label-prefixed chunks from training splits of all three datasets; \textbf{Knowledge (K)}, chunks from the expert glossaries; and \textbf{Full (E+K)}, their union. To prevent data leakage, each training example is masked from retrieval by its chunk ID.
+
+\subsection{Augmented Input Format}
+The retriever fetches the $k$ nearest chunks exceeding cosine similarity threshold $\tau$. The augmented input takes the form $\texttt{[query]} \;\texttt{[SEP]}\; \texttt{[}l_1\texttt{]}\; n_1 \;\texttt{[SEP]}\; \texttt{[}l_2\texttt{]}\; n_2 \;\texttt{[SEP]}\; \cdots$, where $n_i$ is the $i$-th retrieved neighbour and $l_i \in \{\texttt{hate},\, \texttt{not hate}\}$ its label prefix. Retrieved neighbours act as labelled few-shot anchors for the classification decision.
+
+\subsection{Classifier Fine-tuning}
+We fine-tune three encoders: \textbf{BERT} (110M parameters), \textbf{RoBERTa} (125M parameters), and \textbf{HateBERT}~\cite{caselli2021hatebert}, pre-trained on abusive language corpora. Each is fine-tuned with a binary classification head for 3 epochs (lr\,=\,$2{\times}10^{-5}$, batch size 16, seed 42). To ensure full reproducibility, the random seed is explicitly set before each \texttt{from\_pretrained} call, fixing the classifier head initialisation independently of the training loop seed.
+
+\subsection{Hyperparameter Tuning}
+We grid-search $k \in \{3, 5, 10\}$ and $\tau \in \{0.3, 0.4, 0.5, 0.6\}$ on IHC with the Full index (Tab.~\ref{tab:hp_tuning}, Appendix). Optimal values are applied to all subsequent experiments.
+
+\subsection{On-demand Explanation}
+At inference time, the augmented input and the encoder's prediction are passed to \textbf{LLaMA~3.3}~\cite{dubey2024llama3} to generate a grounded, human-readable justification. The LLM is not involved in the classification decision and is not fine-tuned; it synthesises retrieved evidence into a natural-language explanation on demand.
+
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\columnwidth]{model_overview.pdf}
+    \caption{Overview of the RAC and LLM pipeline.}
+    \label{fig:pipeline}
+\end{figure}
+
+%%%%%%%%% ADD VALIDATION SECTION %%%%%%%%%
+\section{Validation}
+\label{sec:validation}
+
+\subsection{Experimental Setup}
+We evaluate 27 RAC models (3 encoders $\times$ 3 indexes $\times$ 3 datasets) plus 9 no-index baselines, using macro F1, precision, and recall. Hyperparameters are fixed to values from Sec.~3.6. A single seed (42) is used throughout. To estimate variance, RoBERTa(E+K) was additionally evaluated across 4 seeds (Tab.~\ref{tab:multiseed}, Appendix): IHC ($0.800\pm0.003$) and ISHate ($0.900\pm0.005$) are stable, while Vicomtech shows higher variance ($0.831\pm0.016$), consistent with its small training set. Tab.~\ref{tab:hp_tuning} (Appendix) confirms F1 variation across the full HP grid remains below 2.5 pp per model, validating low retrieval sensitivity to $k$ and $\tau$.
+
+
+
+\subsection{Main Results}
+Tab.~\ref{tab:results} reports macro F1 for all configurations; full precision and recall are in Tab.~\ref{tab:full_results} (Appendix).
+
+\textbf{Retrieval consistently improves over baselines for the Example and Full indexes.} The Knowledge index, however, underperforms the no-index baseline in nearly all settings, suggesting that the automatically-scraped expert glossaries introduce noise rather than useful signal (see also Sec.~\ref{sec:limits}).
+
+\textbf{IHC and ISHate.} On IHC, RoBERTa(E) achieves the best result of F1\,=\,0.810 ($+$1.3 pp over its no-index baseline). On ISHate, RoBERTa(E+K) achieves F1\,=\,0.906 ($+$2.7 pp), with the Full index outperforming the Example-only index. Retrieved labelled examples act as effective few-shot anchors grounding the encoder in semantically similar precedents.
+
+\textbf{Vicomtech.} On Vicomtech (1,914 training examples), RoBERTa(E) achieves F1\,=\,0.843 ($+$1.5 pp over baseline). HateBERT(E+K)\,=\,0.840 is competitive, suggesting combining both indexes provides marginal additional signal when in-distribution coverage is sparse.
+
+\textbf{RoBERTa consistently outperforms BERT} across all datasets and index types.
+
+\textbf{Our models substantially outperform published baselines.} Tab.~\ref{tab:ihc_comparison} and Tab.~\ref{tab:ishate_taskA} (Appendix) replicate the exact setups of ElSherief et al.~\cite{elsherief2021latent} and Ocampo et al.~\cite{ocampo2023indepth}: RoBERTa (RAC) reaches F1\,=\,0.795 vs.\ BERT+Aug at 0.704 on IHC, and baselines are competitive on ISHate Task A except on Implicit HS, where the binary retrieval signal conflates all three classes.
+
+\begin{table}[h]
+\centering
+{\footnotesize
+\begin{tabular}{lccc}
+\toprule
+\textbf{Model (Index)} & \textbf{IHC} & \textbf{ISHate} & \textbf{Vicomtech} \\
+\midrule
+BERT (No-index)     & 0.786 & 0.872 & 0.814 \\
+BERT (E)            & 0.789 & 0.886 & 0.825 \\
+BERT (K)            & 0.763 & 0.868 & 0.784 \\
+BERT (E+K)          & 0.783 & 0.887 & 0.825 \\
+\midrule
+HateBERT (No-index) & 0.787 & 0.881 & 0.822 \\
+HateBERT (E)        & 0.779 & 0.900 & 0.834 \\
+HateBERT (K)        & 0.769 & 0.873 & 0.816 \\
+HateBERT (E+K)      & 0.778 & 0.898 & 0.840 \\
+\midrule
+RoBERTa (No-index)  & 0.797 & 0.879 & 0.828 \\
+RoBERTa (E)         & \textbf{0.810} & 0.903 & \textbf{0.843} \\
+RoBERTa (K)         & 0.784 & 0.887 & 0.754 \\
+RoBERTa (E+K)       & 0.800 & \textbf{0.906} & 0.839 \\
+\bottomrule
+\end{tabular}}
+\caption{Macro F1 results. E\,=\,Example index, K\,=\,Knowledge index, E+K\,=\,Full index. Bold indicates best per column. Full results (Prec./Rec.) in Tab.~\ref{tab:full_results} (Appendix).}
+\label{tab:results}
+\end{table}
+
+\subsection{Ablation: Removing IHC from the Retrieval Index}
+We train and evaluate on IHC while excluding all IHC training examples from the index. Macro F1 does not degrade meaningfully, confirming that the retriever generalises via semantic similarity rather than exploiting in-distribution shortcuts.
+
+\subsection{Qualitative Analysis}
+Fig.~\ref{fig:rac-example} illustrates the RAC pipeline on an input containing the antisemitic acronym \textit{ZOG} (Zionist Occupation Government). The retriever surfaces a HateBase definition of ZOG as the top match alongside two labelled hate examples. HateBERT(E+K) assigns \texttt{hate}; LLaMA~3.3 synthesises the retrieved evidence into a grounded explanation flagging the antisemitic framing.
+
+
+\begin{figure}[h]
+\centering
+\setlength{\fboxsep}{6pt}
+\fbox{%
+\begin{minipage}{\dimexpr\columnwidth-2\fboxsep-2\fboxrule\relax}\small
+  \textbf{Input:} \textit{``You will be drafted to defend zog''}\\[1pt]
+  {\footnotesize Label: hate \;|\; Prediction: hate \;|\; Confidence: 86.6\%}
+
+  \vspace{-5pt}\rule{\linewidth}{0.3pt}\vspace{0pt}
+
+  \textsc{Retrieved Passages}\\[1pt]
+  \begin{tabular}{@{} r l p{0.78\linewidth} @{}}
+    \# & Score & Passage \\\hline\\[-7pt]
+    1 & 0.445 & [Hate] Zionist: Hatebase entry for Zionist. Target category: Judaism. Filter group: religion. \\[1pt]
+    2 & 0.427 & [Hate] this is antifa . zog will take anyone to fight for greater israel \\[1pt]
+    3 & 0.419 & [Hate] Maximum resistance towards Zog! \\[0pt]
+  \end{tabular}
+
+  \rule{\linewidth}{0.3pt}\vspace{2pt}
+
+  \textsc{Model Explanation}\\[1pt]
+  The content was flagged as hate speech due to the mention of \textit{zog},
+  associated with offensive language targeting the Jewish community.
+  The context suggests a call to action perceived as threatening or discriminatory.
+  \textbf{Target group:} Judaism.
+\end{minipage}%
+}
+\caption{Example of RAC-augmented hate speech detection. Retrieved passages provide
+contextual evidence guiding the model explanation.}
+\label{fig:rac-example}
+\end{figure}
+
+
+
+
+
+\subsection{Computational Cost}
+Our RoBERTa(E+K) requires 0.88\,GB of GPU memory vs.\ 62.4\,GB for NV-Embed~\cite{cheremetiev2025specializing}, which achieves marginally higher F1 (81.68 vs.\ 81.0). This 70$\times$ memory reduction makes the framework substantially more practical for large-scale deployment under DSA cost constraints.
+
+
+
+\subsection{Limitations}
+\label{sec:limits}
+\textbf{Annotation subjectivity.} Implicit hate speech lacks a universal definition, leading to annotator disagreement and identity-term bias --- models over-classify tweets mentioning group identifiers as hateful.
+
+\textbf{Knowledge base scraping quality.}
+The expert glossaries were scraped automatically, introducing two quality issues. First, long entries were split into overlapping chunks using a fixed sliding-window, breaking definitions mid-sentence. Second, HateBase entries were often scraped without human-written definitions, retaining only structured metadata, yielding semantically vacuous retrieved fragments. This likely explains why the Knowledge index consistently underperforms the Example index.
+
+\textbf{Explanation faithfulness.} As classifier and explainer are decoupled, LLaMA~3.3 explanations may reference evidence that did not drive the classification score.
+
+
+%%%%%%%%% ADD CONCLUSION SECTION %%%%%%%%%
+\section{Conclusion}
+\label{sec:conclusion}
+
+We applied Retrieval-Augmented Classification to implicit hate speech detection, grounding fine-tuned encoders in labeled precedents and expert knowledge bases. The Example and Full indexes consistently improve over no-index baselines across all three datasets, with gains up to $+$1.3 pp on IHC, $+$2.7 pp on ISHate, and $+$1.5 pp on Vicomtech. On-demand LLaMA~3.3 explanations address regulatory explainability requirements without involving a generative model in the classification decision. Future work includes multilingual extension, entry-aware chunking to resolve the HateBase scraping quality issue, and joint retriever--classifier fine-tuning for maximally discriminative retrieval.
+
+
+%%%%%%%%% REFERENCES SECTION %%%%%%%%%
+{\tiny
+\bibliographystyle{ieeetr}
+% This is the link to the refereces file.
+\bibliography{main}
+}
+
+
+\appendix
+\onecolumn
+
+\section{Full Results}
+
+\centering
+\captionof{table}{RAC fine-tuning results. E\,=\,Example index, K\,=\,Knowledge index, E+K\,=\,Full index. Bold indicates best per column.}
+\label{tab:full_results}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lccccccccc}
+\toprule
+ & \multicolumn{3}{c}{\textbf{IHC}} & \multicolumn{3}{c}{\textbf{ISHate}} & \multicolumn{3}{c}{\textbf{Vicomtech}} \\
+\cmidrule(lr){2-4} \cmidrule(lr){5-7} \cmidrule(lr){8-10}
+\textbf{Model (Index)} & F1 & Prec. & Rec. & F1 & Prec. & Rec. & F1 & Prec. & Rec. \\
+\midrule
+BERT (No-index)     & 0.786 & 0.791 & 0.783 & 0.872 & 0.873 & 0.871 & 0.814 & 0.814 & 0.814 \\
+BERT (E)            & 0.789 & 0.798 & 0.783 & 0.886 & 0.883 & 0.889 & 0.825 & 0.834 & 0.826 \\
+BERT (K)            & 0.763 & 0.763 & 0.763 & 0.868 & 0.865 & 0.871 & 0.784 & 0.785 & 0.785 \\
+BERT (E+K)          & 0.783 & 0.786 & 0.781 & 0.887 & 0.885 & 0.891 & 0.825 & 0.834 & 0.826 \\
+\midrule
+HateBERT (No-index) & 0.787 & 0.793 & 0.783 & 0.881 & 0.881 & 0.882 & 0.822 & 0.823 & 0.822 \\
+HateBERT (E)        & 0.779 & 0.784 & 0.775 & 0.900 & 0.898 & 0.902 & 0.834 & 0.843 & 0.835 \\
+HateBERT (K)        & 0.769 & 0.773 & 0.766 & 0.873 & 0.874 & 0.873 & 0.816 & 0.817 & 0.816 \\
+HateBERT (E+K)      & 0.778 & 0.783 & 0.774 & 0.898 & 0.896 & 0.900 & 0.840 & \textbf{0.851} & 0.841 \\
+\midrule
+RoBERTa (No-index)  & 0.797 & 0.802 & 0.793 & 0.879 & 0.877 & 0.882 & 0.828 & 0.829 & 0.828 \\
+RoBERTa (E)         & \textbf{0.810} & \textbf{0.824} & \textbf{0.802} & 0.903 & 0.901 & 0.907 & \textbf{0.843} & 0.844 & \textbf{0.843} \\
+RoBERTa (K)         & 0.784 & 0.798 & 0.776 & 0.887 & 0.885 & 0.889 & 0.754 & 0.796 & 0.762 \\
+RoBERTa (E+K)       & 0.800 & 0.809 & 0.795 & \textbf{0.906} & \textbf{0.903} & \textbf{0.909} & 0.839 & 0.839 & 0.839 \\
+\bottomrule
+\end{tabular}}
+
+\vspace{1em}
+\section{Hyperparameter Tuning \& Seed Variance}
+
+\noindent
+\begin{minipage}[t]{0.54\textwidth}
+\centering
+\captionof{table}{Macro F1 over the HP grid ($k$, $\tau$) on IHC with the Full index. Best per model in bold.}
+\label{tab:hp_tuning}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{llcccc}
+\toprule
+Model & $k$ & $\tau{=}0.3$ & $\tau{=}0.4$ & $\tau{=}0.5$ & $\tau{=}0.6$ \\
+\midrule
+\multirow{3}{*}{BERT}     & 3  & 0.777 & 0.779 & 0.787 & 0.785 \\
+                           & 5  & 0.775 & 0.775 & 0.778 & 0.779 \\
+                           & 10 & 0.780 & 0.776 & 0.783 & \textbf{0.788} \\
+\midrule
+\multirow{3}{*}{HateBERT} & 3  & 0.777 & \textbf{0.781} & 0.777 & 0.775 \\
+                           & 5  & 0.771 & 0.768 & 0.775 & 0.773 \\
+                           & 10 & 0.759 & 0.768 & 0.775 & 0.775 \\
+\midrule
+\multirow{3}{*}{RoBERTa}  & 3  & 0.800 & 0.806 & 0.802 & 0.786 \\
+                           & 5  & \textbf{0.809} & 0.799 & 0.802 & 0.797 \\
+                           & 10 & 0.801 & 0.801 & 0.801 & 0.794 \\
+\bottomrule
+\end{tabular}}
+\end{minipage}%
+\hfill
+\begin{minipage}[t]{0.42\textwidth}
+\centering
+\captionof{table}{RoBERTa\,(E+K) macro F1 across 4 seeds. High variance on Vicomtech reflects its small training set.}
+\label{tab:multiseed}
+\begin{tabular}{lcccc|cc}
+\toprule
+Dataset & S\,0 & S\,1 & S\,2 & S\,42 & Mean & Std \\
+\midrule
+IHC       & 0.806 & 0.799 & 0.797 & 0.800 & 0.800 & 0.003 \\
+ISHate    & 0.896 & 0.895 & 0.903 & 0.906 & 0.900 & 0.005 \\
+Vicomtech & 0.804 & 0.847 & 0.832 & 0.839 & 0.831 & 0.016 \\
+\bottomrule
+\end{tabular}
+\end{minipage}
+
+\vspace{1em}
+\section{Comparison with Prior Work}
+
+\noindent
+\begin{minipage}[t]{0.38\textwidth}
+\centering
+\captionof{table}{IHC binary comparison with ElSherief et al.~\cite{elsherief2021latent}. Evaluated on not\_hate vs.\ implicit\_hate only, matching their Table~3 setup.}
+\label{tab:ihc_comparison}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Model} & \textbf{F1} & \textbf{Prec.} & \textbf{Rec.} \\
+\midrule
+BERT (No-index)     & 0.778 & 0.781 & 0.776 \\
+HateBERT (No-index) & 0.780 & 0.785 & 0.777 \\
+RoBERTa (No-index)  & 0.789 & 0.793 & 0.786 \\
+\midrule
+BERT (RAC)          & 0.767 & 0.767 & 0.767 \\
+RoBERTa (RAC)       & \textbf{0.795} & \textbf{0.799} & \textbf{0.791} \\
+\midrule
+SVM n-grams~\cite{elsherief2021latent} & 0.644 & 0.614 & 0.677 \\
+BERT~\cite{elsherief2021latent}        & 0.689 & 0.721 & 0.660 \\
+BERT+Aug~\cite{elsherief2021latent}    & 0.704 & 0.678 & 0.732 \\
+\bottomrule
+\end{tabular}
+\end{minipage}%
+\hfill
+\begin{minipage}[t]{0.58\textwidth}
+\centering
+\captionof{table}{ISHate Task A comparison with Ocampo et al.~\cite{ocampo2023indepth}: 3-class (Non-HS / Explicit HS / Implicit HS). RAC variants use E+K. RAC does not improve Implicit HS F1 as the binary retrieval signal conflates all three classes.}
+\label{tab:ishate_taskA}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lccccccccc}
+\toprule
+ & \multicolumn{3}{c}{\textbf{Non-HS}} & \multicolumn{3}{c}{\textbf{Explicit HS}} & \multicolumn{3}{c}{\textbf{Implicit HS}} \\
+\cmidrule(lr){2-4} \cmidrule(lr){5-7} \cmidrule(lr){8-10}
+\textbf{Model} & P & R & F1 & P & R & F1 & P & R & F1 \\
+\midrule
+BERT (No-index)     & 0.907 & 0.898 & 0.902 & 0.820 & 0.836 & 0.828 & 0.436 & 0.425 & 0.431 \\
+BERT (RAC E+K)      & 0.914 & 0.623 & 0.741 & 0.588 & 0.883 & 0.706 & 0.262 & 0.403 & 0.318 \\
+HateBERT (No-index) & 0.908 & 0.891 & 0.900 & 0.814 & 0.841 & 0.827 & 0.435 & 0.430 & 0.432 \\
+HateBERT (RAC E+K)  & 0.918 & 0.644 & 0.757 & 0.600 & 0.879 & 0.713 & 0.253 & 0.392 & 0.308 \\
+RoBERTa (No-index)  & 0.920 & 0.905 & 0.912 & 0.821 & 0.857 & 0.838 & 0.454 & 0.398 & 0.424 \\
+RoBERTa (RAC E+K)   & 0.895 & 0.903 & 0.899 & 0.787 & 0.815 & 0.801 & 0.486 & 0.285 & 0.359 \\
+\midrule
+DeBERTa~\cite{ocampo2023indepth}      & 0.927 & 0.899 & 0.825 & 0.825 & 0.880 & 0.851 & 0.467 & 0.419 & 0.442 \\
+HateBERT+ALL~\cite{ocampo2023indepth} & 0.903 & 0.896 & 0.899 & 0.827 & 0.827 & 0.827 & \textbf{0.502} & \textbf{0.559} & \textbf{0.529} \\
+DeBERTa+RI~\cite{ocampo2023indepth}   & 0.922 & 0.894 & 0.908 & 0.821 & 0.878 & 0.849 & 0.460 & 0.398 & 0.427 \\
+\bottomrule
+\end{tabular}}
+\end{minipage}
+
+\end{document}
+

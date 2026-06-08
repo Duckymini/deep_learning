@@ -1,0 +1,182 @@
+{
+  "bert|no-index|IHC": {
+    "macro_f1": 0.7864343295505904,
+    "macro_p": 0.7910098818992528,
+    "macro_r": 0.7829999816166333
+  },
+  "bert|no-index|ISHate": {
+    "macro_f1": 0.8720367044846066,
+    "macro_p": 0.8727602615377104,
+    "macro_r": 0.871343757593392
+  },
+  "bert|no-index|Vicomtech": {
+    "macro_f1": 0.8138067164734357,
+    "macro_p": 0.813813025210084,
+    "macro_r": 0.8138075313807531
+  },
+  "hatebert|no-index|IHC": {
+    "macro_f1": 0.7871985270408568,
+    "macro_p": 0.7932333262208133,
+    "macro_r": 0.7829512656947993
+  },
+  "hatebert|no-index|ISHate": {
+    "macro_f1": 0.8811383500736295,
+    "macro_p": 0.8806107240497398,
+    "macro_r": 0.881683926075766
+  },
+  "hatebert|no-index|Vicomtech": {
+    "macro_f1": 0.8220004468608029,
+    "macro_p": 0.8234498031496063,
+    "macro_r": 0.8221757322175732
+  },
+  "roberta|no-index|IHC": {
+    "macro_f1": 0.7968840688400363,
+    "macro_p": 0.8017242683775686,
+    "macro_r": 0.7932477894001507
+  },
+  "roberta|no-index|ISHate": {
+    "macro_f1": 0.8789582786772396,
+    "macro_p": 0.8765497075003401,
+    "macro_r": 0.8818634590115474
+  },
+  "roberta|no-index|Vicomtech": {
+    "macro_f1": 0.8283767689505395,
+    "macro_p": 0.8290279020010172,
+    "macro_r": 0.8284518828451883
+  },
+  "bert|example|IHC": {
+    "macro_f1": 0.7885721228972926,
+    "macro_p": 0.7982339065118877,
+    "macro_r": 0.7826185267569903
+  },
+  "bert|example|ISHate": {
+    "macro_f1": 0.8856253861964091,
+    "macro_p": 0.882708840703031,
+    "macro_r": 0.889316397393058
+  },
+  "bert|example|Vicomtech": {
+    "macro_f1": 0.8254238556008783,
+    "macro_p": 0.8335122370115929,
+    "macro_r": 0.8263598326359832
+  },
+  "hatebert|example|IHC": {
+    "macro_f1": 0.7790815611412958,
+    "macro_p": 0.7841837475136376,
+    "macro_r": 0.7753837527804842
+  },
+  "hatebert|example|ISHate": {
+    "macro_f1": 0.8998243101996055,
+    "macro_p": 0.8979849611022219,
+    "macro_r": 0.9019015014215603
+  },
+  "hatebert|example|Vicomtech": {
+    "macro_f1": 0.833731809876054,
+    "macro_p": 0.842947338212082,
+    "macro_r": 0.8347280334728033
+  },
+  "roberta|example|IHC": {
+    "macro_f1": 0.80983548193007,
+    "macro_p": 0.8244989108584887,
+    "macro_r": 0.801653583837344
+  },
+  "roberta|example|ISHate": {
+    "macro_f1": 0.9034843533211412,
+    "macro_p": 0.9006747860434496,
+    "macro_r": 0.9069299713211612
+  },
+  "roberta|example|Vicomtech": {
+    "macro_f1": 0.8430405905351506,
+    "macro_p": 0.8435834502103787,
+    "macro_r": 0.8430962343096234
+  },
+  "bert|knowledge|IHC": {
+    "macro_f1": 0.762748566359643,
+    "macro_p": 0.7625660070474829,
+    "macro_r": 0.7629345368310753
+  },
+  "bert|knowledge|ISHate": {
+    "macro_f1": 0.8680659058702298,
+    "macro_p": 0.865465671062333,
+    "macro_r": 0.8713066128480579
+  },
+  "bert|knowledge|Vicomtech": {
+    "macro_f1": 0.7844046539938607,
+    "macro_p": 0.7851228070175439,
+    "macro_r": 0.7845188284518829
+  },
+  "hatebert|knowledge|IHC": {
+    "macro_f1": 0.7689896755162242,
+    "macro_p": 0.7732068028701734,
+    "macro_r": 0.7658418662793904
+  },
+  "hatebert|knowledge|ISHate": {
+    "macro_f1": 0.8732886904761905,
+    "macro_p": 0.8738823639002957,
+    "macro_r": 0.8727157916241695
+  },
+  "hatebert|knowledge|Vicomtech": {
+    "macro_f1": 0.8157415194841604,
+    "macro_p": 0.8169872639437857,
+    "macro_r": 0.8158995815899581
+  },
+  "roberta|knowledge|IHC": {
+    "macro_f1": 0.7835078894947776,
+    "macro_p": 0.7979042272756145,
+    "macro_r": 0.7758920528705627
+  },
+  "roberta|knowledge|ISHate": {
+    "macro_f1": 0.8865998706321863,
+    "macro_p": 0.8848566338658763,
+    "macro_r": 0.8885673116954873
+  },
+  "roberta|knowledge|Vicomtech": {
+    "macro_f1": 0.7542748917748918,
+    "macro_p": 0.7963966109093795,
+    "macro_r": 0.7615062761506277
+  },
+  "bert|full|IHC": {
+    "macro_f1": 0.7834423985936434,
+    "macro_p": 0.7862054931020448,
+    "macro_r": 0.7811689982903469
+  },
+  "bert|full|ISHate": {
+    "macro_f1": 0.8874722183061767,
+    "macro_p": 0.8846989110235126,
+    "macro_r": 0.8909182645355901
+  },
+  "bert|full|Vicomtech": {
+    "macro_f1": 0.8254238556008783,
+    "macro_p": 0.8335122370115929,
+    "macro_r": 0.8263598326359832
+  },
+  "hatebert|full|IHC": {
+    "macro_f1": 0.7775194087787399,
+    "macro_p": 0.782703441468461,
+    "macro_r": 0.7737853190433296
+  },
+  "hatebert|full|ISHate": {
+    "macro_f1": 0.8978811774557682,
+    "macro_p": 0.8961198996309756,
+    "macro_r": 0.8998600881259082
+  },
+  "hatebert|full|Vicomtech": {
+    "macro_f1": 0.8398829357733467,
+    "macro_p": 0.8508312170169846,
+    "macro_r": 0.8410041841004184
+  },
+  "roberta|full|IHC": {
+    "macro_f1": 0.8003768069413584,
+    "macro_p": 0.8087106632590221,
+    "macro_r": 0.7948894240491204
+  },
+  "roberta|full|ISHate": {
+    "macro_f1": 0.9056112688712525,
+    "macro_p": 0.9028738640366096,
+    "macro_r": 0.9089381091157849
+  },
+  "roberta|full|Vicomtech": {
+    "macro_f1": 0.8389057883794726,
+    "macro_p": 0.8389655413923518,
+    "macro_r": 0.8389121338912133
+  }
+}
