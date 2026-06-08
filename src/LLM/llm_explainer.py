@@ -361,3 +361,106 @@ def display_result(example_id, text, l2, explanation):
 def wrap(text, width=80, indent=14):
     """Wrap text for fixed-width terminal output with hanging indent."""
     return textwrap.fill(str(text), width=width, subsequent_indent=" " * indent)
+
+
+def run_all(texts, ret_model, ret_tokenizer, index, documents,
+            clf_model, clf_tokenizer, device,
+            llm_client, llm_model, k=5, threshold=0.3, llm_timeout=30):
+    """Run the full pipeline on a list of input dicts (each with 'id' and 'text').
+
+    Internally extracts numpy vectors from the FAISS index, then for each text:
+      - Layer 1+2: SBERT retrieval + RAC classification
+      - Layer 3: LLM explanation (with timeout)
+
+    Returns a list of record dicts suitable for display or DataFrame construction.
+    """
+    import gc
+    import time
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+
+    print(f"Extracting index vectors for numpy search...", end=" ", flush=True)
+    _inner  = faiss.downcast_index(index.index)
+    _xb     = np.empty((index.ntotal, index.d), dtype="float32")
+    _inner.reconstruct_n(0, index.ntotal, _xb)
+    _id_map = faiss.vector_to_array(index.id_map).astype("int64")
+    print(f"done  shape={_xb.shape}")
+
+    records = []
+    t_start = time.time()
+
+    for i, entry in enumerate(texts):
+        text       = str(entry["text"])
+        example_id = entry["id"]
+
+        t0 = time.time()
+        print(f"[{i+1:02d}/{len(texts)}] id={example_id}  ...", end=" ", flush=True)
+
+        # Layer 1 + 2: retrieve neighbors and classify
+        retrieved = retrieve_numpy(text, threshold, k, ret_model, ret_tokenizer, _xb, _id_map, documents)
+
+        sep       = clf_tokenizer.sep_token or "[SEP]"
+        augmented = f" {sep} ".join([text] + [t for t, _ in retrieved])
+        inputs    = clf_tokenizer(augmented, return_tensors="pt", truncation=True, padding=True, max_length=256)
+        inputs    = {key: v.to(device) for key, v in inputs.items()}
+        with torch.no_grad():
+            logits = clf_model(**inputs).logits[0]
+        del inputs
+        probs      = F.softmax(logits, dim=-1)
+        pred_idx   = torch.argmax(probs).item()
+        label      = "hate" if pred_idx == 1 else "not hate"
+        confidence = probs[pred_idx].item()
+        del logits, probs
+
+        l2 = Layer2Output(
+            original_text=text, label=label, confidence=confidence,
+            hate_category="unknown", retrieved=retrieved,
+        )
+
+        # Layer 3: LLM explanation (with timeout)
+        try:
+            with ThreadPoolExecutor(max_workers=1) as ex:
+                fut         = ex.submit(explain, l2, llm_client, llm_model)
+                explanation = fut.result(timeout=llm_timeout)
+        except FuturesTimeout:
+            print(f"TIMEOUT({llm_timeout}s) ", end="", flush=True)
+            explanation = ExplainerOutput(
+                summary="LLM call timed out.", evidence_used=[], target_groups=[],
+                severity="unknown", recommended_action="human-review",
+                moderator_note="LLM call exceeded timeout.", validation_passed=False,
+            )
+        except Exception as e:
+            print(f"ERR({e}) ", end="", flush=True)
+            explanation = ExplainerOutput(
+                summary=f"LLM error: {e}", evidence_used=[], target_groups=[],
+                severity="unknown", recommended_action="human-review",
+                moderator_note="LLM call raised an exception.", validation_passed=False,
+            )
+
+        elapsed = time.time() - t0
+        print(f"pred={label.upper():8s}  conf={confidence:.1%}  {elapsed:.1f}s")
+
+        records.append({
+            "id"                : example_id,
+            "text"              : text,
+            "predicted"         : label,
+            "confidence"        : round(confidence, 4),
+            "n_retrieved"       : len(retrieved),
+            "top_sim"           : round(retrieved[0][1], 4) if retrieved else None,
+            "retrieved_passages": [
+                {"text": _strip_label(t), "label": _extract_label(t), "score": round(s, 4)}
+                for t, s in retrieved
+            ],
+            "summary"           : explanation.summary,
+            "evidence_used"     : explanation.evidence_used,
+            "severity"          : explanation.severity,
+            "action"            : explanation.recommended_action,
+            "target_groups"     : explanation.target_groups,
+            "moderator_note"    : explanation.moderator_note,
+            "validation_passed" : explanation.validation_passed,
+        })
+
+        gc.collect()
+
+    total = time.time() - t_start
+    print(f"\nDone. {len(records)} input(s) processed  |  total={total/60:.1f} min")
+    return records
