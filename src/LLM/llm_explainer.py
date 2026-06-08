@@ -2,8 +2,20 @@ from __future__ import annotations
 
 import json
 import re
+import textwrap
 from dataclasses import dataclass
+from pathlib import Path
 from typing import List, Optional, Tuple
+
+try:
+    import faiss
+    import numpy as np
+    import torch
+    import torch.nn.functional as F
+    from transformers import AutoModel, AutoModelForSequenceClassification, AutoTokenizer
+    from retriever import encode, retrieve_top_k, retrieve_top_k_above_threshold
+except ImportError:
+    pass  # heavy deps only available in the notebook environment
 
 
 @dataclass
@@ -35,9 +47,19 @@ def _strip_label(text: str) -> str:
     return _LABEL_RE.sub("", text).strip()
 
 
+strip_label = _strip_label  # public alias used by the demo notebook
+
+
 def _extract_label(text: str) -> str:
     m = _LABEL_RE.match(text)
     return m.group(1).lower() if m else "unknown"  # group(1) captures the label word inside the brackets
+
+
+RETRIEVER_HF_ID = "sentence-transformers/all-mpnet-base-v2"
+CLF_HF_IDS = {
+    "bert":    "bert-base-uncased",
+    "roberta": "roberta-base",
+}
 
 
 _SYSTEM_PROMPT = (
@@ -214,3 +236,128 @@ def explain(layer2_output: Layer2Output, client, model: str) -> ExplainerOutput:
         moderator_note=raw.get("moderator_note") or None,  # convert empty string "" to None; LLMs sometimes return "" instead of null
         validation_passed=True,
     )
+
+
+# ---------------------------------------------------------------------------
+# Pipeline helpers — used by llm_demo.ipynb
+# ---------------------------------------------------------------------------
+
+def load_pipeline(model_family, index_split, dataset, index_dir, weights_rac_dir):
+    """Load the SBERT retriever, FAISS index, and RAC classifier.
+
+    Returns (ret_model, ret_tokenizer, index, documents, clf_model, clf_tokenizer, device).
+    """
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Device: {device}")
+
+    print(f"Loading retriever: {RETRIEVER_HF_ID} ...")
+    ret_tokenizer = AutoTokenizer.from_pretrained(RETRIEVER_HF_ID)
+    ret_model     = AutoModel.from_pretrained(RETRIEVER_HF_ID).eval().to(device)
+
+    index_path  = Path(index_dir) / f"vdb_{index_split}.faiss"
+    lookup_path = Path(index_dir) / f"lookup_{index_split}.json"
+    print(f"Loading index: {index_path} ...")
+    faiss_index = faiss.read_index(str(index_path))
+    with open(lookup_path) as f:
+        documents = json.load(f)
+    print(f"  Index size: {faiss_index.ntotal:,} vectors")
+
+    clf_path = str(Path(weights_rac_dir) / model_family / "sbert" / index_split / dataset)
+    print(f"Loading RAC classifier: {clf_path} ...")
+    clf_tokenizer = AutoTokenizer.from_pretrained(clf_path)
+    clf_model     = AutoModelForSequenceClassification.from_pretrained(clf_path).eval().to(device)
+
+    print(f"\nReady: {model_family.upper()} | index=sbert/{index_split} | trained_on={dataset}")
+    return ret_model, ret_tokenizer, faiss_index, documents, clf_model, clf_tokenizer, device
+
+
+def retrieve_numpy(text, threshold, k, model, tokenizer, xb, id_map, documents):
+    """Encode with mean pooling then score via numpy dot product — no FAISS at query time."""
+    vec   = encode([text], model, tokenizer, batch_size=1, use_mean_pool=True)
+    vec_n = vec / np.maximum(np.linalg.norm(vec, axis=1, keepdims=True), 1e-9)
+
+    sims    = (xb @ vec_n.T).squeeze()
+    top_pos = np.argsort(sims)[::-1][:k]
+    top_ids = id_map[top_pos]
+    scores  = sims[top_pos]
+
+    retrieved = [
+        (documents[str(int(cid))], float(sc))
+        for cid, sc in zip(top_ids, scores)
+        if sc >= threshold
+    ][:k]
+    if not retrieved:
+        retrieved = [
+            (documents[str(int(cid))], float(sc))
+            for cid, sc in zip(top_ids, scores)
+        ][:k]
+
+    del vec, vec_n, sims, top_pos, top_ids, scores
+    return retrieved
+
+
+def run_pipeline(text, ret_model, ret_tokenizer, index, documents,
+                 clf_model, clf_tokenizer, device,
+                 llm_client, llm_model, k=5, threshold=0.3):
+    """Run Layer 2 (retrieval + classification) and Layer 3 (LLM explanation) for one text.
+
+    Returns (Layer2Output, ExplainerOutput).
+    """
+    retrieved = retrieve_top_k_above_threshold(
+        text, threshold, ret_model, ret_tokenizer, index, documents, chunk_id=None, k=k
+    )
+    if not retrieved:
+        retrieved = retrieve_top_k(
+            text, ret_model, ret_tokenizer, index, documents, chunk_id=None, k=k
+        )
+
+    sep       = clf_tokenizer.sep_token or "[SEP]"
+    augmented = f" {sep} ".join([text] + [t for t, _ in retrieved])
+    inputs    = clf_tokenizer(
+        augmented, return_tensors="pt", truncation=True, padding=True, max_length=256
+    )
+    inputs = {key: v.to(device) for key, v in inputs.items()}
+    with torch.no_grad():
+        logits = clf_model(**inputs).logits[0]
+    probs      = F.softmax(logits, dim=-1)
+    pred_idx   = torch.argmax(probs).item()
+    label      = "hate" if pred_idx == 1 else "not hate"
+    confidence = probs[pred_idx].item()
+
+    l2 = Layer2Output(
+        original_text=text, label=label, confidence=confidence,
+        hate_category="unknown", retrieved=retrieved,
+    )
+    explanation = explain(l2, llm_client, llm_model)
+    return l2, explanation
+
+
+def display_result(example_id, text, l2, explanation):
+    """Print a formatted single-result block to stdout."""
+    w = 80
+    print("=" * w)
+    print(f"[{example_id}]  TEXT : {text}")
+    print("-" * w)
+    print(f"LAYER 2  : {l2.label.upper()}  ({l2.confidence:.1%} confidence)")
+    print()
+    print(f"RETRIEVED NEIGHBORS ({len(l2.retrieved)}):")
+    for i, (txt, score) in enumerate(l2.retrieved, 1):
+        print(f"  [{i}] {score:.4f}  {_strip_label(txt)[:100]}")
+    print()
+    print("LAYER 3 EXPLANATION:")
+    print(f"  Summary   : {explanation.summary}")
+    print(f"  Severity  : {explanation.severity}")
+    print(f"  Action    : {explanation.recommended_action}")
+    print(f"  Targets   : {', '.join(explanation.target_groups) if explanation.target_groups else chr(8212)}")
+    print(f"  Evidence  : {explanation.evidence_used}")
+    if explanation.moderator_note:
+        print(f"  Note      : {explanation.moderator_note}")
+    valid_str = "✓ passed" if explanation.validation_passed else "✗ FAILED (forced human-review)"
+    print(f"  Validation: {valid_str}")
+    print("=" * w)
+    print()
+
+
+def wrap(text, width=80, indent=14):
+    """Wrap text for fixed-width terminal output with hanging indent."""
+    return textwrap.fill(str(text), width=width, subsequent_indent=" " * indent)
