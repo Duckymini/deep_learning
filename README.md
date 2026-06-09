@@ -115,8 +115,7 @@ deep_learning/
 │   └── weights_rac_noihc_index/
 │
 ├── results/                  # Executed notebooks and JSON outputs
-├── ee559_docker_env/         # Dockerfile and requirements for the RCP cluster image
-└── requirements.txt
+└── ee559_docker_env/         # Dockerfile and requirements for the RCP cluster image
 ```
 
 ---
@@ -125,11 +124,7 @@ deep_learning/
 
 ### Prerequisites
 
-```bash
-pip install -r requirements.txt
-```
-
-Or use the pre-built Docker image `registry.rcp.epfl.ch/ee-559-potocnik/my-toolbox:v0.1` on the RCP cluster (see `ee559_docker_env/`).
+All notebooks are designed to run inside the pre-built Docker image `registry.rcp.epfl.ch/ee-559-potocnik/my-toolbox:v0.1` on the RCP cluster. See `ee559_docker_env/` for the Dockerfile and pinned dependencies. There is no supported local installation path.
 
 The corpus data (`corpus/chunks/` and `corpus/index/`) must exist before running any training notebook. `chunks_knowledge.csv` requires re-running `scrap_chunk_knowledge.ipynb` with a Firecrawl API key if not already present. All other chunk and index files can be rebuilt from scratch with the steps below.
 
@@ -185,6 +180,16 @@ runai submit --name <job-name> \
 ```
 
 Use `--gpu 1` for all jobs. The multi-seed notebook takes a `TRAINING_SEED` environment variable; submit three separate jobs with `TRAINING_SEED=0`, `TRAINING_SEED=1`, `TRAINING_SEED=2`.
+
+### LLM Demo (local)
+
+`src/LLM/llm_demo.ipynb` is designed to run locally, not on the cluster. It requires one extra package not in the Docker image:
+
+```bash
+pip install groq
+```
+
+It also needs a free [Groq API key](https://console.groq.com) set in the notebook.
 
 ---
 
